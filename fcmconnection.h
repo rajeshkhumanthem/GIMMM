@@ -13,8 +13,8 @@
 
 #define DEFAULT_NSPACE_URI		"jabber:client"
 #define STREAM_NSPACE_URI 		"http://etherx.jabber.org/streams"
-#define SASL_NSPACE_URI         "urn:ietf:params:xml:ns:xmpp-sasl"
-#define BIND_NSPACE_URI         "urn:ietf:params:xml:ns:xmpp-bind"
+#define SASL_NSPACE_URI                 "urn:ietf:params:xml:ns:xmpp-sasl"
+#define BIND_NSPACE_URI                 "urn:ietf:params:xml:ns:xmpp-bind"
 #define SESSION_NSPACE_URI		"urn:ietf:params:xml:ns:xmpp-session"
 #define GCM_NSPACE_URI			"google:mobile:data"
 
