@@ -16,11 +16,14 @@ At this point, GIMMM is able to
 5) Recieve messages from the BAL Client and forward it to an ios app (downstream message).
 6) Flow control.
 7) Handle control messages (CONNECTION DRAINING).
-8) Hold on to all upstream messages if BAL client connection is down and forward to it after reconnect.
+8) Retry with exponential backoff.
+9) Hold on to all upstream messages if BAL client connection is down and forward to it after a successfull reconnect.
 
 TODO:
 1) Resend messages to FCM after a disconnect/reconnect.
 2) Handle 'Reciepts' messages.
+3) Quick start guide. 
+4) Reference implementation of BAL in other languages like python, java etc.
 
 # XMPP Handshake with Google FCM server.
 See xmpp_handshake.txt for a full list of xml messages exchanged between FCM and Phantom.
