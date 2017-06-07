@@ -106,24 +106,25 @@ class Application:public QObject
         void handleAuthenticationTimeout(BALConnPtr_t sess);
         void handleBALLogonRequest(QTcpSocket* socket,
                                    const std::string& session_id);
-        void uploadDownstreamMessage(const SessionId_t& sesion_id,
+        void handleBalPassthruMessage(const SessionId_t& sesion_id,
                                      const QJsonDocument& downstream_msg);
-        void retrySendingDownstreamMessage(const MessagePtr_t& ptr);
+        void retrySendingDownstreamMessage(MessagePtr_t ptr);
         void notifyDownstreamUploadFailure(const MessagePtr_t& ptr);
 
         void forwardAckMsg(const MessageId_t& original_msgid);
-        void forwardMsg(const MessagePtr_t& msg);
+        void forwardMsg(MessagePtr_t& msg);
         void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
         void handleBalAckMsg(const SessionId_t& session_id,
                              const MessageId_t& msgid);
         int  getNextFcmConnectionId(){ return ++__fcmConnCount;}
         void sendNextPendingMessage(const MessageManager& msgmanager);
-        bool retryWithBackoff(const MessagePtr_t& msg);
+        bool retryWithBackoff(MessagePtr_t& msg);
 
         BALSessionPtr_t findBalSession(const SessionId_t& session_id);
         MessageManager& findBalMessageManager(const SessionId_t& bal_session_id);
         void sendNextPendingDownstreamMessage(const MessageManager& msgmanager);
         void sendNextPendingUpstreamMessage(const MessageManager& msgmanager);
+        void uploadToFcm(MessagePtr_t& msg);
 };
 
 #endif // APPLICATION_H

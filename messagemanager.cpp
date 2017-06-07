@@ -7,7 +7,8 @@
  * \brief MessageManager::MessageManager
  */
 MessageManager::MessageManager(std::int64_t max_pending_allowed)
-            :__maxPendingAllowed(max_pending_allowed)
+    :__maxPendingAllowed(max_pending_allowed),
+     __pendingAckCount(0)
 {
 
 }
@@ -167,6 +168,7 @@ const MessagePtr_t MessageManager::findMessage(MessageId_t msgid)const
     THROW_INVALID_ARGUMENT_EXCEPTION(err.str());
 }
 
+
 /*!
  * \brief MessageManager::canSend
  * \param msg
@@ -199,6 +201,7 @@ int MessageManager::canSend(const MessagePtr_t& msg)const
     }
     return 0;
 }
+
 
 //we resend messages for which we haven't recieved an ack as well on
 //reconnect.

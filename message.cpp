@@ -1,6 +1,5 @@
 #include "message.h"
 
-
 Message::Message()
     :__state(MessageState::NEW)
 {
@@ -18,7 +17,7 @@ const Message& Message::operator =(const Message& rhs)
         this->__messageId           = rhs.__messageId;
         this->__groupId             = rhs.__groupId;
         this->__sequenceId          = rhs.__sequenceId;
-        this->__targetSessionId     = rhs.__sourceSessionId;
+        this->__targetSessionId     = rhs.__targetSessionId;
         this->__state               = rhs.__state;
         this->__exboff              = rhs.__exboff;
 

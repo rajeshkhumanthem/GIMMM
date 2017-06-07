@@ -154,7 +154,7 @@ void FcmConnection::handleReadyRead()
     }
     // Recieved regular message. We can start parsing.
     // TODO implement an option to print this to a file.
-    // std::cout << std::endl << "RX["<< bytes.length() <<"]:" << bytes.toStdString() << std::endl;
+    //std::cout << std::endl << "RX["<< bytes.length() <<"]:" << bytes.toStdString() << std::endl;
     __fcmReader.addData(bytes);
     try
     {

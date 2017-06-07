@@ -5,6 +5,12 @@
 #include <QJsonDocument>
 
 
+#define TEST_MODE
+
+#ifdef TEST_MODE
+#include "macros.h"
+#endif
+
 /*!
  * \brief BALSession::BALSession
  * \param state
@@ -31,6 +37,11 @@ BALSession::~BALSession()
  */
 bool BALSession::writeMessage(const QJsonDocument& jsonmsg)
 {
+    std::cout << "Printing json..." << std::endl;
+    PRINT_JSON_DOC(std::cout, jsonmsg);
+    return true;
+    /*
+#else
     if ( __state == SessionState::AUTHENTICATED)
     {
         QByteArray m;
@@ -44,6 +55,8 @@ bool BALSession::writeMessage(const QJsonDocument& jsonmsg)
             return true;
     }else
         return false;
+#endif
+*/
 }
 
 

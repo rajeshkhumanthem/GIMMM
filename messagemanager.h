@@ -96,8 +96,8 @@ inline bool Group::canSend(const MessagePtr_t &msg)
 class MessageManager
 {
     // # of messages pending ack from FCM
-    std::uint64_t                           __pendingAckCount;
     std::uint64_t                           __maxPendingAllowed;
+    std::uint64_t                           __pendingAckCount;
     //main queue that stores msg in order or reciept.
     std::map<MessageId_t, SequenceId_t>     __sequenceIdMap;//msgid --> SequenceId_t
     MessageQueue_t                          __messages;//SequenceId_t, message. //TODO check for order.
@@ -118,6 +118,7 @@ class MessageManager
         MessageQueue_t&     getMessages() { return __messages;}
         const MessagePtr_t  findMessage(MessageId_t msgid)const;
         bool                isMessagePending() const { return (__pendingAckCount > __maxPendingAllowed);}
+        void                incrementPendingAckCount() { __pendingAckCount++;}
 
     private:
         void                addToMessages(const MessagePtr_t& msg);
@@ -126,7 +127,6 @@ class MessageManager
         void                removeFromMessages(const MessageId_t& msgid, const SequenceId_t& seqid);
         void                removeFromGroups(const GroupId_t& gid, const SequenceId_t& seqid);
         void                removeFromSessions(const SessionId_t& sessid, const SequenceId_t& seqid);
-        void                incrementPendingAckCount() { __pendingAckCount++;}
         void                decrementPendingAckCount(){ __pendingAckCount--;}
         SequenceId_t        findSequenceId(const MessageId_t& msgid) const;
         GroupPtr_t          findGroup(const GroupId_t& gid)const;
