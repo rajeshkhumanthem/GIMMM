@@ -17,6 +17,27 @@ ExponentialBackoff::ExponentialBackoff(int start_val, int max_retry)
 }
 
 
+ExponentialBackoff::ExponentialBackoff(const ExponentialBackoff &rhs)
+{
+    __engine = rhs.__engine;
+    __distribution = rhs.__distribution;
+    __retry = rhs.__retry;
+    __maxRetry = rhs.__maxRetry;
+}
+
+
+const ExponentialBackoff& ExponentialBackoff::operator =(const ExponentialBackoff& rhs)
+{
+    if ( &rhs != this)
+    {
+        __engine = rhs.__engine;
+        __distribution = rhs.__distribution;
+        __retry = rhs.__retry;
+        __maxRetry = rhs.__maxRetry;
+    }
+    return *this;
+}
+
 /*!
  * \brief ExponentialBackoff::next
  * \return

@@ -17,6 +17,9 @@ class ExponentialBackoff
       int __maxRetry;
     public:
       ExponentialBackoff(int start_val = 0, int max_retry = -1);
+      ExponentialBackoff(const ExponentialBackoff& rhs);
+      const ExponentialBackoff& operator =(const ExponentialBackoff& rhs);
+
       int next();
       void resetRetry() { __retry = 0;}
 };

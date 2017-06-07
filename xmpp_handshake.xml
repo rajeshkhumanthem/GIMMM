@@ -239,36 +239,54 @@ XMPP Handshake with Google FCM server.
     }
 }
 
+<!-- message send from GIMMM to BAL -->
 {
     message_type = "UPSTREAM",
     session_id = "asdfasdfasdf",
+    message_id = "12345",
     status = "",
     fcm_data = {
     }
 }
 
+<!-- sample downstream message recieved from a BAL layer -->
 {
-    message_type = "UPSTREAM_ACK",
+    message_type = "BAL_ACK",
     session_id = "asdfasdfasdf",
-    status = "",
-    message_id = "12345"
-    fcm_data = {
-    }
+    message_id = "12345",
 }
 
 {
     message_type = "DOWNSTREAM",
     session_id = "asdfasdfasdf",
-    status = "",
+    message_id = "12345",
+    group_id = "",
     fcm_data = {
     }
 }
 
+<!-- sample downstream message ack sent down to a BAL layer. -->
+{
+    message_type = "DOWNSTREAM_ACK",
+    session_id = "asdfasdfasdf",
+    message_id = "12345",
+    group_id = "",
+}
+
+<!-- sample downstream message reciept forwarded to a BAL layer. -->
+{
+    message_type = "DOWNSTREAM_RECIEPT",
+    session_id = "asdfasdfasdf",
+    message_id = "12345",
+    group_id = "",
+    error_string = "MAX RETRY REACHED"
+}
+
+<!-- sample downstream message reciept sent down to a BAL layer. -->
 {
     message_type = "DOWNSTREAM_REJECT",
     session_id = "asdfasdfasdf",
-    status = "",
-    error_string = "",
-    fcm_data = {
-    }
+    message_id = "12345",
+    group_id = "",
+    error_string = "Some Error"
 }

@@ -1,0 +1,95 @@
+Application	application.cpp	/^Application::~Application()$/
+BALConnPtr_t	balsession.h	/^typedef std::shared_ptr<BALConn> BALConnPtr_t;$/
+BALSession	balsession.cpp	/^BALSession::~BALSession()$/
+BALSessionPtr_t	balsession.h	/^typedef std::shared_ptr<BALSession> BALSessionPtr_/
+DownstreamMessagePtr_t	message.h	/^typedef std::shared_ptr<DownstreamMessage> Downstr/
+FCM_TAG	macros.h	/^#define FCM_TAG(id) \\$/
+FcmConnection	fcmconnection.cpp	/^FcmConnection::~FcmConnection()$/
+FcmConnectionPtr_t	fcmconnection.h	/^typedef std::shared_ptr<FcmConnection> FcmConnecti/
+FcmConnectionsMap	application.h	/^typedef std::map<int, FcmConnectionPtr_t> FcmConne/
+FcmMsgPtr_t	message.h	/^typedef std::shared_ptr<QJsonDocument> FcmMsgPtr_t/
+MessageId_t	message.h	/^typedef std::uint64_t MessageId_t;$/
+Mmain.cpp	main.cpp	/^int main(int argc, char *argv[])$/
+PRINT_EXCEPTION_STRING	macros.h	/^#define PRINT_EXCEPTION_STRING(out, ex) \\$/
+PRINT_JSON_DOC	macros.h	/^#define PRINT_JSON_DOC(out, jsondoc) \\$/
+PhantomMsgPtr_t	message.h	/^typedef std::shared_ptr<QJsonDocument> PhantomMsgP/
+SessionMap	application.h	/^typedef std::map<std::string, BALSessionPtr_t> Ses/
+SessionMapU	application.h	/^typedef std::map<qintptr,     BALConnPtr_t> Sessio/
+THROW_INVALID_ARGUMENT_EXCEPTION	macros.h	/^#define THROW_INVALID_ARGUMENT_EXCEPTION(errmsg) /
+UpstreamMessagePtr_t	message.h	/^typedef std::shared_ptr<UpstreamMessage> UpstreamM/
+__fcmConnCount	application.cpp	/^    :__fcmConnCount(0)$/
+__id	fcmconnection.cpp	/^     __id(id)$/
+__retry	exponentialbackoff.cpp	/^        __retry(start_val)$/
+__state	balsession.cpp	/^    :__state(state)$/
+__timeToLive	message.cpp	/^    :__messageType(type), __timeToLive(10)$/
+connectToFcm	fcmconnection.cpp	/^void FcmConnection::connectToFcm($/
+connectToFirebase	fcmconnection.cpp	/^void FcmConnection::connectToFirebase()$/
+createAck	message.cpp	/^QJsonDocument Message::createAck()$/
+createDownstream	message.cpp	/^QJsonDocument Message::createDownstream()$/
+createFcmHandle	application.cpp	/^FcmConnectionPtr_t Application::createFcmHandle()$/
+disconnectFromHost	balsession.cpp	/^void BALSession::disconnectFromHost()$/
+getPeerDetail	application.cpp	/^std::string Application::getPeerDetail(const QTcpS/
+handleAckMessage	application.cpp	/^void Application::handleAckMessage(int id, const Q/
+handleAuthenticationTimeout	application.cpp	/^void Application:: handleAuthenticationTimeout(BAL/
+handleBALAckMsg	application.cpp	/^void Application::handleBALAckMsg(const std::strin/
+handleBALLogonRequest	application.cpp	/^void Application::handleBALLogonRequest($/
+handleBALSocketReadyRead	application.cpp	/^void Application::handleBALSocketReadyRead()$/
+handleBALmsg	application.cpp	/^void Application::handleBALmsg($/
+handleConnectionDrainingStarted	application.cpp	/^void Application::handleConnectionDrainingStarted(/
+handleConnectionError	application.cpp	/^void Application::handleConnectionError(int id, co/
+handleConnectionEstablished	application.cpp	/^void Application::handleConnectionEstablished(int /
+handleConnectionLost	application.cpp	/^void Application::handleConnectionLost(int id)$/
+handleConnectionShutdownCompleted	application.cpp	/^void Application::handleConnectionShutdownComplete/
+handleConnectionShutdownStarted	application.cpp	/^void Application::handleConnectionShutdownStarted(/
+handleConnectionStarted	application.cpp	/^void Application::handleConnectionStarted(int id)$/
+handleControlMessage	fcmconnection.cpp	/^void FcmConnection::handleControlMessage(const QJs/
+handleDisconnected	fcmconnection.cpp	/^void FcmConnection::handleDisconnected()$/
+handleDownstreamUploadFailure	application.cpp	/^void Application::handleDownstreamUploadFailure(Do/
+handleEndOfStream	fcmconnection.cpp	/^void FcmConnection::handleEndOfStream()$/
+handleFcmConnectionError	application.cpp	/^void Application::handleFcmConnectionError(int id,/
+handleFcmMessage	fcmconnection.cpp	/^void FcmConnection::handleFcmMessage(const QString/
+handleFeatures	fcmconnection.cpp	/^void FcmConnection::handleFeatures()$/
+handleHeartbeatRecieved	application.cpp	/^void Application::handleHeartbeatRecieved(int id)$/
+handleIq	fcmconnection.cpp	/^void FcmConnection::handleIq()$/
+handleMessage	fcmconnection.cpp	/^void FcmConnection::handleMessage()$/
+handleNackMessage	application.cpp	/^void Application::handleNackMessage(int id, const /
+handleNewBALConnection	application.cpp	/^void Application::handleNewBALConnection()$/
+handleNewUpstreamMessage	application.cpp	/^void Application::handleNewUpstreamMessage(int id,/
+handleOtherElement	fcmconnection.cpp	/^void FcmConnection::handleOtherElement()$/
+handleReadyRead	fcmconnection.cpp	/^void FcmConnection::handleReadyRead()$/
+handleSaslFailure	fcmconnection.cpp	/^void FcmConnection::handleSaslFailure()$/
+handleSaslSuccess	fcmconnection.cpp	/^void FcmConnection::handleSaslSuccess()$/
+handleSendMessage	fcmconnection.cpp	/^void FcmConnection::handleSendMessage(const QJsonD/
+handleSessionEstablished	application.cpp	/^void Application::handleSessionEstablished(int id)/
+handleStartElement	fcmconnection.cpp	/^void FcmConnection::handleStartElement()$/
+handleStartStream	fcmconnection.cpp	/^void FcmConnection::handleStartStream()$/
+handleStreamClosed	application.cpp	/^void Application::handleStreamClosed(int id)$/
+handleXmppHandshakeStarted	application.cpp	/^void Application::handleXmppHandshakeStarted(int i/
+next	exponentialbackoff.cpp	/^int ExponentialBackoff::next()$/
+parseXml	fcmconnection.cpp	/^void FcmConnection::parseXml()$/
+printProperties	application.cpp	/^void Application::printProperties()$/
+readBind	fcmconnection.cpp	/^void FcmConnection::readBind()$/
+readConfigFile	application.cpp	/^void Application::readConfigFile()$/
+readIQBindResult	fcmconnection.cpp	/^void FcmConnection::readIQBindResult()$/
+readJid	fcmconnection.cpp	/^void FcmConnection::readJid()$/
+readMechanism	fcmconnection.cpp	/^void FcmConnection::readMechanism()$/
+readMechanisms	fcmconnection.cpp	/^void FcmConnection::readMechanisms()$/
+readSession	fcmconnection.cpp	/^void FcmConnection::readSession()$/
+retrySendingDownstreamMessage	application.cpp	/^void Application::retrySendingDownstreamMessage(Do/
+retryWithExponentialBackoff	application.cpp	/^void Application::retryWithExponentialBackoff(std:/
+sendAckMessage	application.cpp	/^void Application::sendAckMessage(const QJsonDocume/
+sendAuthenticationInfo	fcmconnection.cpp	/^void FcmConnection::sendAuthenticationInfo()$/
+sendIQBind	fcmconnection.cpp	/^void FcmConnection::sendIQBind()$/
+setupFcmHandle	application.cpp	/^void Application::setupFcmHandle(FcmConnectionPtr_/
+setupOsSignalCatcher	application.cpp	/^void Application::setupOsSignalCatcher()$/
+setupTcpServer	application.cpp	/^void Application::setupTcpServer()$/
+setup_posix_signal_handlers	main.cpp	/^static int setup_posix_signal_handlers()$/
+socketEncrypted	fcmconnection.cpp	/^void FcmConnection::socketEncrypted()$/
+start	application.cpp	/^void Application::start()$/
+startNewStream	fcmconnection.cpp	/^void FcmConnection::startNewStream()$/
+toJson	message.cpp	/^QJsonDocument Message::toJson()$/
+tryForwardingUpstreamMsg	application.cpp	/^void Application::tryForwardingUpstreamMsg(const Q/
+validate	message.cpp	/^void Message::validate()const$/
+validateAck	message.cpp	/^void Message::validateAck() const$/
+validateDownstream	message.cpp	/^void Message::validateDownstream() const$/
+writeMessage	balsession.cpp	/^bool BALSession::writeMessage(const QJsonDocument&/

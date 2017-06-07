@@ -31,3 +31,10 @@ See xmpp_handshake.txt for a full list of xml messages exchanged between FCM and
 # Other Details
 Implemented in C++ using QT framework.
 
+# Open issues
+1. From FCM documentation: "Sending an ACK message
+In response to an upstream message like the above, the app server must use the same connection to send
+an ACK message containing the unique message ID. If FCM does not receive an ACK,
+it may retry sending the message to the app server." - How quickly do we need to send the ack message?
+
+sessionid grpid msgid

@@ -163,13 +163,13 @@ void FcmConnection::handleReadyRead()
     catch(std::exception& err)
     {
         //std::cout << "Exception caught. Error[" << err.what() << std::endl;
-        emit fcmConnectionError(__id, err.what());
+        emit connectionError(__id, err.what());
     }
     catch (...)
     {
         std::stringstream err;
         err << "unknown exception caught.";
-        emit fcmConnectionError(__id, err.str().c_str());
+        emit connectionError(__id, err.str().c_str());
     }
 }
 
@@ -194,7 +194,7 @@ void FcmConnection::parseXml()
         if (__fcmReader.error() != QXmlStreamReader::PrematureEndOfDocumentError)
         {
             //std::cout << __fcmReader.errorString().toStdString() << std::endl;
-            emit fcmConnectionError(__id, __fcmReader.errorString());
+            emit connectionError(__id, __fcmReader.errorString());
         }
     }
 }
@@ -384,7 +384,7 @@ void FcmConnection::handleSaslFailure()
     std::stringstream err;
     err << "Recieved xmpp-sasl FAILURE from FCM server. Reason:"
               << failureReason.toStdString() << std::endl;
-    emit fcmConnectionError(__id, err.str().c_str());
+    emit connectionError(__id, err.str().c_str());
 
     // TODO try another authentication method ??
 }
@@ -474,7 +474,7 @@ void FcmConnection::handleFcmMessage(const QString& json_str)
         std::stringstream err;
         err << "ERROR: Failed to parse recieved msg, error["
                   << parseErr.errorString().toStdString()<< "]";
-        emit fcmConnectionError(__id, err.str().c_str());
+        emit connectionError(__id, err.str().c_str());
         return;
     }
     //std::cout << "Message:" << std::endl;
@@ -553,7 +553,7 @@ void FcmConnection::handleControlMessage(const QJsonDocument& control_msg)
         std::stringstream err;
         err << "Unknown control message recieved from FCM.";
         QString qerr(err.str().c_str());
-        emit fcmConnectionError(__id, qerr);
+        emit connectionError(__id, qerr);
     }
 }
 

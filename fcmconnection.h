@@ -84,12 +84,12 @@ class FcmConnection:public QObject
         void streamClosed(int id);
         void sessionEstablished(int id);
         void heartbeatRecieved(int id);
-        void fcmConnectionError(int id, const QString& error);
 
         void newMessage(int id, const QJsonDocument& msg);
         void newAckMessage(int id, const QJsonDocument& msg);
         void newNackMessage(int id, const QJsonDocument& msg);
         void connectionDrainingCompleted(int id);
+        // TODO void messageSent(const QString& msgid);
     private:
         void parseXml();
         void handleStartElement();

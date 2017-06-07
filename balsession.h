@@ -1,6 +1,8 @@
 #ifndef BALSESSION_H
 #define BALSESSION_H
 
+#include "messagemanager.h"
+
 #include <QObject>
 
 #include <iostream>
@@ -21,9 +23,6 @@ enum class SessionState: char{
 
 class QTcpSocket;
 class QJsonDocument;
-/*!
- * \brief The BALConn class
- */
 class BALConn
 {
         QTcpSocket*       __socket;
@@ -55,8 +54,7 @@ class BALSession
       BALConnPtr_t      __balConn;
       std::string       __sessionId; // BAL identifir; category field in FCM.
       SessionState      __state;
-      std::vector<QJsonDocument> __downstreamMessages;
-      std::vector<QJsonDocument> __upstreamMessages;
+      MessageManager    __msgManager;
 
       friend std::ostream &operator<< (std::ostream&, const BALSession&);
     public:
@@ -71,6 +69,7 @@ class BALSession
         const std::string&  getSessionId() const {return __sessionId;}
         SessionState        getSessionState() const { return __state;}
         BALConnPtr_t        getConn() const {return __balConn;}
+        MessageManager&     getMessageManager() {return __msgManager;}
 };
 
 /*!

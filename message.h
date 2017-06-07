@@ -17,21 +17,14 @@
 #define MAX_UPSTREAM_UPLOAD_RETRY       10
 #define MAX_LOGON_MSG_WAIT_TIME         10000 // in msec
 
-/*!
- * \brief MessageId_t
- */
-typedef std::uint64_t MessageId_t;
+class Message;
 
-/*!
- * \brief FcmMsgPtr_t
- */
-typedef std::shared_ptr<QJsonDocument> FcmMsgPtr_t;
-
-/*!
- * \brief PhantomMsgPtr_t
- */
-typedef std::shared_ptr<QJsonDocument> PhantomMsgPtr_t;
-
+typedef std::string                     MessageId_t;
+typedef std::string                     GroupId_t;
+typedef std::uint64_t                   SequenceId_t;
+typedef std::string                     SessionId_t;
+typedef std::shared_ptr<QJsonDocument>  PayloadPtr_t;
+typedef std::shared_ptr<Message> MessagePtr_t;
 
 /*!
  * field names in the root JSON message inside a xmpp stanza
@@ -46,19 +39,20 @@ namespace fcmfieldnames
   static const char* const FROM             = "from";
   static const char* const CATEGORY         = "category";
   static const char* const CONTROL_TYPE     = "control_type";
+  static const char* const TO               = "to";
 }
 
 
 /*!
  *
  */
-namespace phantomfieldnames
+namespace gimmmfieldnames
 {
   static const char* const MESSAGE_TYPE     = "message_type";
   static const char* const MESSAGE_ID       = "message_id";
+  static const char* const GROUP_ID         = "group_id";
   static const char* const SESSION_ID       = "session_id";
-  static const char* const ERROR            = "error";
-  static const char* const ERROR_DESC       = "error_description";
+  static const char* const ERROR_STRING     = "error_string";
   static const char* const FCM_DATA         = "fcm_data";
 }
 
@@ -66,18 +60,21 @@ namespace phantomfieldnames
 /*!
  * \brief The MessageType enum
  */
-enum class MessageType: int
+enum class MessageType: char
 {
-  UNKNOWN = 0,
-  ACK = 1,
-  DOWNSTREAM = 2,
+    UNKNOWN = 0,
+    ACK = 1,              // BAL --> GIMMM
+    UPSTREAM = 2,         // GIMMM --> BAL
+    DOWNSTREAM = 3,       // BAL --> GIMMM
+    DOWNSTREAM_ACK = 4,   // GIMMM --> BAL
+    DOWNSTREAM_REJECT = 5 // GIMMM --> BAL
 };
 
 
 /*!
  * \brief The MessageContentType enum
  */
-enum class MessageContentType: int
+enum class MessageContentType: char
 {
     UNKNOWN         = 0,
     DATA            = 1, // Handled by client app. 4KB limit.
@@ -85,162 +82,63 @@ enum class MessageContentType: int
 
 };
 
+enum class MessageState: char
+{
+    UNKNOWN         = 0,
+    NEW             = 1,
+    NACK            = 2,
+    PENDING_ACK     = 3,
+    DELIVERED       = 4,
+    DELIVERY_FAILED = 5
+};
 
-/*!
- * \brief The Message class
- *        Convenient class to create 'Downstream XMPP message(JSON)'.
- *        Consists of 3 parts; Target, Options & Data.
- *        See https://firebase.google.com/docs/cloud-messaging/xmpp-server-ref for details.
- */
+
 class Message
 {
-    MessageType         __messageType;
-    MessageContentType  __messageContentType;
-    std::string         __typeString;
-    // Target
-    std::string         __to;
-    std::string         __condition;
-
-    //Options
-    std::string         __messageId;
-    std::string         __collapseKey;
-    std::string         __priority;
-    QVariant            __contentAvailable;
-    QVariant            __mutableContent;
-    std::int32_t        __timeToLive;
-    QVariant            __deliveryRecieptRequested;
-    QVariant            __dryRun;
-
-    //Payload
-    QJsonObject         __data;
-
-public:
-    Message(MessageType type = MessageType::UNKNOWN);
-    ~Message() {}
-    QJsonDocument toJson(); // throw std::exception
-    void setTo(const std::string& to) { __to = to;}
-    void setTo(const char* to) { __to = to;}
-    void setCondition(const std::string& condition){ __condition = condition;}
-    void setMessageId(const std::string& message_id) { __messageId = message_id;}
-    void setCollapseKey( const std::string& collapse_key) { __collapseKey = collapse_key;}
-    void setpriority(const std::string& priority) { __priority = priority;}
-    void setContentAvailable(bool content_available) { __contentAvailable = content_available;}
-    void setTimeToLive (std::int32_t ttl) { __timeToLive = ttl;}
-    void setDeliveryRecieptRequested(bool dcr) { __deliveryRecieptRequested = dcr;}
-    void setDryRun (bool dry_run) { __dryRun = dry_run;}
-    void setData(const QJsonObject& data) { __data = data;}
-    /*!
-     * \brief validate
-     *        Call to validate the current message.
-     *        Throws 'std::invalid_argument' exception on failure.
-     */
-    void validate()const;
-
-    MessageType getMessageType() const { return __messageType;}
-    MessageContentType getMessageContentType() { return __messageContentType;}
-    const std::string& getTo()const { return __to;}
-    const std::string& getCondition() const { return __condition;}
-    const std::string& getMessageId() const { return __messageId;}
-
-    // OPTIONAL FIELDS
-    /*!
-     * \brief getCollapseKey: Optional Field.
-     * \return
-     */
-    const std::string& getCollapseKey() const { return __collapseKey;}
-    /*!
-     * \brief getPriority: Optional Field.
-     * \return
-     */
-    const std::string& getPriority() const { return __priority;}
-    /*!
-     * \brief getTimeToLive: Optional Field.
-     * \return
-     */
-    std::int32_t       getTimeToLive() const { return __timeToLive;}
-    /*!
-     * \brief getContentAvailable: Optional Field.
-     *          Possible value is NULL/true/false.
-     *          User should check for NULL before using it.
-     * \return: Returns a QVariant which could be NULL since this is an optional field.
-     */
-    QVariant           getContentAvailable() const { return __contentAvailable;}
-    /*!
-     * \brief getMutableContent: Optional Field.
-     *          Possible value is NULL/true/false.
-     *          User should check for NULL before using it.
-     * \return: Returns a QVariant which could be NULL since this is an optional field.
-     */
-    QVariant           getMutableContent() const { return __mutableContent;}
-    /*!
-     * \brief getDeliveryRecieptRequested: Optional Field.
-     *          Possible value is NULL/true/false.
-     *          User should check for NULL before using it.
-     * \return: Returns a QVariant which could be NULL since this is an optional field.
-     */
-    QVariant           getDeliveryRecieptRequested() const { return __deliveryRecieptRequested;}
-    /*!
-     * \brief getDryRun: Optional Field.
-     *          Possible value is NULL/true/false.
-     *          User should check for NULL before using it.
-     * \return: Returns a QVariant which could be NULL since this is an optional field.
-     */
-    QVariant           getDryRun()const { return __dryRun;}
-private:
-    QJsonDocument createAck();
-    QJsonDocument createDownstream();
-    void validateAck()const;
-    void validateDownstream()const;
-};
-
-
-/*!
- * \brief The DownstreamMessage class
- */
-class DownstreamMessage
-{
-        ExponentialBackoff __exboff;
-        std::string __messageId;
-        FcmMsgPtr_t __fcmmsgPtr;
+        MessageId_t         __messageId;
+        GroupId_t           __groupId;
+        SequenceId_t        __sequenceId;
+        SessionId_t         __sourceSessionId;
+        SessionId_t         __targetSessionId;
+        MessageState        __state;
+        MessageType         __type;
+        ExponentialBackoff  __exboff;
+        PayloadPtr_t        __payload;
     public:
-        void setMessageId(const std::string& mid) { __messageId = mid;}
-        void setMsg(FcmMsgPtr_t mptr) { __fcmmsgPtr = mptr;}
+        Message();
+        Message(const Message& rhs);
+        const Message& operator=(const Message& rhs);
+        virtual ~Message();
+        static MessagePtr_t createMessage(
+                            SequenceId_t seqid,
+                            MessageType type,
+                            const MessageId_t& msgid,
+                            const GroupId_t& gid,
+                            const SessionId_t& sess_id,
+                            PayloadPtr_t& payload,
+                            MessageState state = MessageState::NEW);
+        //setters
+        void setMessageId(const MessageId_t& mid) { __messageId = mid;}
+        void setGroupId(const GroupId_t& gid) { __groupId = gid;}
+        void setTargetSessionId(const SessionId_t& sid) { __targetSessionId = sid;}
+        void setSourceSessionId(const SessionId_t& sid) { __sourceSessionId = sid;}
+        void setState(MessageState state){__state = state;}
+        void setType(MessageType type){__type = type;}
+        void setPayload(PayloadPtr_t mptr) { __payload = mptr;}
+        void setSequenceId(const SequenceId_t& sequence_id) { __sequenceId = sequence_id;}
 
-        const std::string& getMessageId() const { return __messageId;}
-        FcmMsgPtr_t getMsg() { return __fcmmsgPtr;}
-
-        DownstreamMessage():__exboff(0, MAX_DOWNSTREAM_UPLOAD_RETRY){;}
+        //getters
+        const MessageId_t&  getMessageId() const { return __messageId;}
+        SequenceId_t        getSequenceId() const { return __sequenceId;}
+        GroupId_t           getGroupId() const { return __groupId;}
+        PayloadPtr_t        getPayload() { return __payload;}
+        const SessionId_t&  getTargetSessionId()const { return __targetSessionId;}
+        const SessionId_t&  getSourceSessionId()const { return __sourceSessionId;}
+        MessageState        getState()const { return __state;}
+        MessageType         getType()const { return __type;}
         int getNextRetryTimeout() { return __exboff.next();}
+    private:
 };
 
-/*!
- * \brief DownstreamMessagePtr_t
- */
-typedef std::shared_ptr<DownstreamMessage> DownstreamMessagePtr_t;
-
-
-/*!
- * \brief The UpstreamMessage class
- */
-class UpstreamMessage
-{
-        ExponentialBackoff __exboff;
-        std::string __messageId;
-        PhantomMsgPtr_t __msgPtr;
-    public:
-        void setMessageId(const std::string& mid) { __messageId = mid;}
-        void setMsg(PhantomMsgPtr_t mptr) { __msgPtr = mptr;}
-
-        const std::string& getMessageId() const { return __messageId;}
-        PhantomMsgPtr_t getMsg() { return __msgPtr;}
-
-        UpstreamMessage():__exboff(0, MAX_UPSTREAM_UPLOAD_RETRY){;}
-        int getNextRetryTimeout() { return __exboff.next();}
-};
-
-/*!
- * \brief UpstreamMessagePtr_t
- */
-typedef std::shared_ptr<UpstreamMessage> UpstreamMessagePtr_t;
 
 #endif // MESSAGE_H

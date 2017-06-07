@@ -4,6 +4,8 @@
 #include "fcmconnection.h"
 #include "balsession.h"
 #include "message.h"
+#include "messagemanager.h"
+#include "dbconnection.h"
 
 #include <cstring>
 #include <map>
@@ -16,10 +18,10 @@
 
 
 // Authenticated sessions. Key = category, Val = a BAL session.
-typedef std::map<std::string, BALSessionPtr_t> SessionMap;
+typedef std::map<std::string, BALSessionPtr_t>  BalSessionMap_t;
 // Unauthenticated sessions. Key = socket descriptor, Val = a BALConn.
-typedef std::map<qintptr,     BALConnPtr_t> SessionMapU;
-typedef std::map<int, FcmConnectionPtr_t> FcmConnectionsMap;
+typedef std::map<qintptr,     BALConnPtr_t>     SessionMapU;
+typedef std::map<int, FcmConnectionPtr_t>       FcmConnectionsMap;
 
 
 /*!
@@ -40,14 +42,11 @@ class Application:public QObject
         QString                     __fcmServerKey;     // FCM server key; read from config.ini
         QString                     __fcmHostAddress;   // FCM host add; read from config.ini
         quint16                     __fcmPortNo;        // FCM port no; read from config.ini
-        SessionMap                  __sessionMap;
-        SessionMapU                 __sessionMapU;
-        // messages already uploaded to FCM but awaiting 'ack'.
-        std::map<std::string, DownstreamMessagePtr_t>   __downstreamMessages;
-        // messages waiting to be uploaded to FCM because we have exceeded 100 un acked messages.
-        std::queue<DownstreamMessagePtr_t>              __downstreamMessagesPending;
-        // messages waiting to be forwarded to BAL.
-        std::map<std::string, UpstreamMessagePtr_t>     __upstreamMessages;
+        MessageManager              __fcmMsgManager;
+
+        BalSessionMap_t             __balSessionMap;
+        SessionMapU                 __balSessionMapU;
+        DbConnection                __dbConn;
 
         // Variables to help setup catchers for
         // SIGTERM & SIGHUP
@@ -77,21 +76,20 @@ class Application:public QObject
         void handleBALmsg(QTcpSocket* socket,
                           const QJsonDocument& json);
         // FCM handle slots
-        void handleNewUpstreamMessage(int id, const QJsonDocument& json);
-        void handleAckMessage(int id, const QJsonDocument& json);
-        void handleNackMessage(int id, const QJsonDocument& json);
-        void handleConnectionStarted(int id);
-        void handleConnectionEstablished(int id);
-        void handleConnectionShutdownStarted(int id);
-        void handleConnectionShutdownCompleted(int id);
-        void handleConnectionError(int id, const QString& error);
-        void handleConnectionLost(int id);
-        void handleXmppHandshakeStarted(int id);
-        void handleSessionEstablished(int id);
-        void handleStreamClosed(int id);
-        void handleHeartbeatRecieved(int id);
-        void handleFcmConnectionError(int id, const QString& err);
-        void handleConnectionDrainingStarted(int id);
+        void handleFcmNewUpstreamMessage(int id, const QJsonDocument& json);
+        void handleFcmAckMessage(int id, const QJsonDocument& json);
+        void handleFcmNackMessage(int id, const QJsonDocument& json);
+        void handleFcmConnectionStarted(int id);
+        void handleFcmConnectionEstablished(int id);
+        void handleFcmConnectionShutdownStarted(int id);
+        void handleFcmConnectionShutdownCompleted(int id);
+        void handleFcmConnectionError(int id, const QString& error);
+        void handleFcmConnectionLost(int id);
+        void handleFcmXmppHandshakeStarted(int id);
+        void handleFcmSessionEstablished(int id);
+        void handleFcmStreamClosed(int id);
+        void handleFcmHeartbeatRecieved(int id);
+        void handleFcmConnectionDrainingStarted(int id);
     private:
         // setup functions
         void start();
@@ -102,20 +100,30 @@ class Application:public QObject
         void readConfigFile();
         // GCM URI
         void printProperties();
-        void retryWithExponentialBackoff(std::string msg_id);
+        void retryNacksWithExponentialBackoff(MessagePtr_t ptr);
         void sendAckMessage(const QJsonDocument& original_msg);
         std::string getPeerDetail(const QTcpSocket* socket);
         void handleAuthenticationTimeout(BALConnPtr_t sess);
         void handleBALLogonRequest(QTcpSocket* socket,
                                    const std::string& session_id);
-        void trySendingDownstreamMessage(const QJsonDocument& downstream_msg);
-        void retrySendingDownstreamMessage(DownstreamMessagePtr_t ptr);
-        void handleDownstreamUploadFailure(DownstreamMessagePtr_t ptr);
+        void uploadDownstreamMessage(const SessionId_t& sesion_id,
+                                     const QJsonDocument& downstream_msg);
+        void retrySendingDownstreamMessage(const MessagePtr_t& ptr);
+        void notifyDownstreamUploadFailure(const MessagePtr_t& ptr);
 
-        void tryForwardingUpstreamMsg(const QJsonDocument& phantom_msg);
-        void resendPendingUpstreamMessages();
-        void handleBALAckMsg(const std::string& msgid);
+        void forwardAckMsg(const MessageId_t& original_msgid);
+        void forwardMsg(const MessagePtr_t& msg);
+        void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
+        void handleBalAckMsg(const SessionId_t& session_id,
+                             const MessageId_t& msgid);
         int  getNextFcmConnectionId(){ return ++__fcmConnCount;}
+        void sendNextPendingMessage(const MessageManager& msgmanager);
+        bool retryWithBackoff(const MessagePtr_t& msg);
+
+        BALSessionPtr_t findBalSession(const SessionId_t& session_id);
+        MessageManager& findBalMessageManager(const SessionId_t& bal_session_id);
+        void sendNextPendingDownstreamMessage(const MessageManager& msgmanager);
+        void sendNextPendingUpstreamMessage(const MessageManager& msgmanager);
 };
 
 #endif // APPLICATION_H

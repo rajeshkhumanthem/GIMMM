@@ -12,6 +12,7 @@
 BALSession::BALSession(SessionState state)
     :__state(state)
 {
+    //TODO initialize messagemanager with unsent messages.
 }
 
 
