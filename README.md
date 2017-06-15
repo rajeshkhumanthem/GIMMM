@@ -24,8 +24,9 @@ TODO:
 2) Handle 'Reciepts' messages (in progress).
 3) Quick start guide (in progress). 
 4) Reference implementation of BAL in other languages like python, java etc.
-5) Sqlite support. To persist upstream/downstream message for resend.
+5) Persist message using Sqlite. To persist upstream/downstream message for resend.
 6) Implement message grouping for strict order messaging (done).
+7) Utility class for message id generation.
 
 # XMPP Handshake with Google FCM server.
 See xmpp_handshake.txt for a full list of xml messages exchanged between FCM and Phantom.
