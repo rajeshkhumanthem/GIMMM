@@ -24,7 +24,7 @@ TODO:
 2) Handle 'Reciepts' messages (in progress).
 3) Quick start guide (in progress). 
 4) Reference implementation of BAL in other languages like python, java etc.
-5) sqlite support. To persist upstream/downstream message for resend.
+5) Sqlite support. To persist upstream/downstream message for resend.
 6) Implement message grouping for strict order messaging (done).
 
 # XMPP Handshake with Google FCM server.
