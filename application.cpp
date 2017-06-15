@@ -816,7 +816,7 @@ void Application::handleBALSocketReadyRead()
         return;
 
     std::cout << "===================================START NEW BAL MESSAGE============================================\n";
-    std::cout << "Peer " << getPeerDetail(socket) << std::endl;
+    std::cout << "Peer[" << getPeerDetail(socket) << "]" << std::endl;
     try
     {
         QJsonDocument jsondoc = QJsonDocument::fromBinaryData(bytes);
@@ -961,6 +961,7 @@ void Application::handleBALLogonRequest(
                     QTcpSocket* socket,
                     const std::string& session_id)
 {
+    std::cout << "----------------------------------START BAL LOGON REQUEST----------------------------------------\n";
     auto it = __balSessionMapU.find(socket->socketDescriptor());
     if ( it == __balSessionMapU.end())
     {
@@ -995,12 +996,14 @@ void Application::handleBALLogonRequest(
     root["status"] = "SUCCESS";
     reply.setObject(root);
     sess->writeMessage(reply);
+
     std::cout << "===================================NEW BAL CLIENT CONNECTED=========================================" << std::endl;
     std::cout << "=        SESSION_ID:" <<  session_id << std::endl;
     std::cout << "=        PEER:"       << getPeerDetail(socket) << std::endl;
     std::cout << "====================================================================================================" << std::endl;
 
     resendPendingUpstreamMessages(sess);
+    std::cout << "----------------------------------END BAL LOGON REQUEST----------------------------------------" << std::endl;
 }
 
 

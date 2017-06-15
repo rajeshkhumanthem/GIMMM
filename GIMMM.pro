@@ -17,7 +17,8 @@ SOURCES += main.cpp \
     balsession.cpp \
     exponentialbackoff.cpp \
     messagemanager.cpp \
-    dbconnection.cpp
+    dbconnection.cpp \
+    sqlite/sqlite3.c
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked deprecated (the exact warnings
@@ -38,7 +39,8 @@ HEADERS += \
     balsession.h \
     exponentialbackoff.h \
     messagemanager.h \
-    dbconnection.h
+    dbconnection.h \
+    sqlite/sqlite3.h
 
 DISTFILES += \
     config.ini \
