@@ -6,6 +6,8 @@ https://firebase.google.com/docs/cloud-messaging/server
 
 By separating the 'app server' into 2 parts; a session layer (GIMMM daemon) and a business application logic aka BAL layer (GIMMM Client), an application programmer can concentrate wholely on implementing their BAL and leave the nitty gritty details of interfacing with the FCM Connection servers to the GIMMM daemon.
 
+For a more detail documentation please see [Gimmm Wiki Page](https://github.com/rajeshkhumanthem/GIMMM/wiki).
+
 # Status
 At this point, GIMMM is able to 
 
@@ -28,9 +30,6 @@ TODO:
 6) Implement message grouping for strict order messaging (done).
 7) Utility class for message id generation.
 
-# XMPP Handshake with Google FCM server.
-See xmpp_handshake.txt for a full list of xml messages exchanged between FCM and Phantom.
-
 # Other Details
 Implemented in C++ using QT framework.
 
@@ -40,4 +39,4 @@ In response to an upstream message like the above, the app server must use the s
 an ACK message containing the unique message ID. If FCM does not receive an ACK,
 it may retry sending the message to the app server." - How quickly do we need to send the ack message?
 
-sessionid grpid msgid
+
