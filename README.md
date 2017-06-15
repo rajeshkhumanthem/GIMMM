@@ -20,10 +20,12 @@ At this point, GIMMM is able to
 9) Hold on to all upstream messages if BAL client connection is down and forward to it after a successfull reconnect.
 
 TODO:
-1) Resend messages to FCM after a disconnect/reconnect.
-2) Handle 'Reciepts' messages.
-3) Quick start guide. 
+1) Resend messages to FCM after a disconnect/reconnect (in progress).
+2) Handle 'Reciepts' messages (in progress).
+3) Quick start guide (in progress). 
 4) Reference implementation of BAL in other languages like python, java etc.
+5) sqlite support. To persist upstream/downstream message for resend.
+6) Implement message grouping for strict order messaging (done).
 
 # XMPP Handshake with Google FCM server.
 See xmpp_handshake.txt for a full list of xml messages exchanged between FCM and Phantom.
