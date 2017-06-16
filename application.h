@@ -114,6 +114,7 @@ class Application:public QObject
         void forwardAckMsg(const MessageId_t& original_msgid);
         void forwardMsg(MessagePtr_t& msg);
         void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
+        void resendPendingDownstreamMessages();
         void handleBalAckMsg(const SessionId_t& session_id,
                              const MessageId_t& msgid);
         int  getNextFcmConnectionId(){ return ++__fcmConnCount;}

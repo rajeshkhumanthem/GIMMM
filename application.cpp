@@ -221,7 +221,7 @@ void Application::setupFcmHandle(FcmConnectionPtr_t fcmConnPtr)
  */
 void Application::handleFcmStreamClosed(int id)
 {
-    std::cout << FCM_TAG(id) <<"Recieved stream closed from FCM." << std::endl;
+    std::cout << FCM_TAG_RX(id) <<"Recieved stream closed from FCM." << std::endl;
 }
 
 
@@ -230,7 +230,7 @@ void Application::handleFcmStreamClosed(int id)
  */
 void Application::handleFcmHeartbeatRecieved(int id)
 {
-    std::cout <<  FCM_TAG(id) << "Recieved keepalive from FCM" << std::endl;
+    std::cout <<  FCM_TAG_RX(id) << "Recieved keepalive from FCM" << std::endl;
 }
 
 
@@ -241,7 +241,7 @@ void Application::handleFcmHeartbeatRecieved(int id)
  */
 void Application::handleFcmConnectionError(int id, const QString& err)
 {
-    std::cout << FCM_TAG(id) << "ERROR. Error string[" << err.toStdString() << "]" << std::endl;
+    std::cout << FCM_TAG_RX(id) << "ERROR. Error string[" << err.toStdString() << "]" << std::endl;
 }
 
 
@@ -250,7 +250,7 @@ void Application::handleFcmConnectionError(int id, const QString& err)
  */
 void Application::handleFcmConnectionStarted(int id)
 {
-    std::cout << FCM_TAG(id) << "Connecting to FCM server..." << std::endl;
+    std::cout << FCM_TAG_TX(id) << "Connecting to FCM server..." << std::endl;
 }
 
 
@@ -259,7 +259,7 @@ void Application::handleFcmConnectionStarted(int id)
  */
 void Application::handleFcmConnectionEstablished(int id)
 {
-    std::cout << FCM_TAG(id) << "Secure TLS channel established with FCM server..." << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Secure TLS channel established with FCM server..." << std::endl;
 }
 
 
@@ -268,7 +268,7 @@ void Application::handleFcmConnectionEstablished(int id)
  */
 void Application::handleFcmXmppHandshakeStarted(int id)
 {
-    std::cout << FCM_TAG(id) <<"Starting XMPP handshake. Opening stream..." << std::endl;
+    std::cout << FCM_TAG_TX(id) <<"Starting XMPP handshake. Opening stream..." << std::endl;
 }
 
 
@@ -277,20 +277,20 @@ void Application::handleFcmXmppHandshakeStarted(int id)
  */
 void Application::handleFcmSessionEstablished(int id)
 {
-    std::cout << FCM_TAG(id) << "Session authenticated sucessfully.." << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Session authenticated sucessfully.." << std::endl;
     std::cout << "----------------------------------------------------------------------------------------------------\n";
     std::cout << "-     SESSION WITH FCM ESTABLISHED SUCCESSFULLY        -" << std::endl;
     std::cout << "-     SESSION ID: " << __fcmServerId.toStdString() <<"\n";
     std::cout << "----------------------------------------------------------------------------------------------------" << std::endl;
+    resendPendingDownstreamMessages();
 }
-
 
 /*!
  * \brief Application::handleFcmConnectionLost
  */
 void Application::handleFcmConnectionLost(int id)
 {
-    std::cout << FCM_TAG(id) << "Disconnected to FCM server." << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Disconnected to FCM server.\n" << std::endl;
 }
 
 
@@ -299,7 +299,7 @@ void Application::handleFcmConnectionLost(int id)
  */
 void Application::handleFcmConnectionShutdownStarted(int id)
 {
-    std::cout << FCM_TAG(id) <<"Shuting down connection to FCM..." << std::endl;
+    std::cout << FCM_TAG_RX(id) <<"Shuting down connection to FCM..." << std::endl;
 }
 
 
@@ -308,7 +308,7 @@ void Application::handleFcmConnectionShutdownStarted(int id)
  */
 void Application::handleFcmConnectionShutdownCompleted(int id)
 {
-    std::cout << FCM_TAG(id) << "Connection to FCM shutdown successfully." << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Connection to FCM shutdown successfully." << std::endl;
 }
 
 
@@ -318,7 +318,7 @@ void Application::handleFcmConnectionShutdownCompleted(int id)
  */
 void Application::handleFcmConnectionDrainingStarted(int id)
 {
-    std::cout << FCM_TAG(id) << "Connection draining started..." << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Connection draining started..." << std::endl;
 
     // disconnect 'sendMessage()' connection to old fcm handle.
     auto lastFcmHandleIter = __fcmConnectionsMap.rbegin();
@@ -345,7 +345,7 @@ void Application::handleFcmNewUpstreamMessage(
 {
 
     std::cout << "-----------------------------------START Handle New Upstream Message-----------------------------------------" << std::endl;
-    std::cout << FCM_TAG(id) << "[" << client_msg.toJson().toStdString() << "]" << std::endl;
+    std::cout << FCM_TAG_RX(id) << "[" << client_msg.toJson().toStdString() << "]" << std::endl;
     try
     {
         std::string from = client_msg.object().value(fcmfieldnames::FROM).toString().toStdString();
@@ -432,7 +432,7 @@ void Application::handleFcmAckMessage(int id, const QJsonDocument& ack_msg)
     std::cout << "-----------------------------------START Handle Ack Message-----------------------------------------" << std::endl;
 
     std::string mid = ack_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
-    std::cout << FCM_TAG(id) << "Recieved downstream 'ack' from FCM for message id:" << mid << std::endl;
+    std::cout << FCM_TAG_RX(id) << "Recieved downstream 'ack' from FCM for message id:" << mid << std::endl;
 
     try
     {
@@ -473,7 +473,7 @@ void Application::handleFcmNackMessage(int id, const QJsonDocument& nack_msg)
     std::string msg_id = nack_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
     std::string error = nack_msg.object().value(fcmfieldnames::ERROR).toString().toStdString();
     std::string error_desc = nack_msg.object().value(fcmfieldnames::ERROR_DESC).toString().toStdString();
-    std::cout << FCM_TAG(id) << "Recieved 'nack' for message id:"<< msg_id
+    std::cout << FCM_TAG_RX(id) << "Recieved 'nack' for message id:"<< msg_id
               << ", error:" << error
               << ", error description:" << error_desc << std::endl;
 
@@ -781,7 +781,11 @@ void Application::retryNacksWithExponentialBackoff(MessagePtr_t ptr)
     }
 }
 
-
+/*!
+ * \brief Application::retryWithBackoff
+ * \param msg
+ * \return
+ */
 bool Application::retryWithBackoff(MessagePtr_t& msg)
 {
     int msec = msg->getNextRetryTimeout();
@@ -1079,21 +1083,26 @@ void Application::handleBalPassthruMessage(
     }
 }
 
+
 /*!
  * \brief Application::uploadToFcm
  * \param msg
  */
 void Application::uploadToFcm(MessagePtr_t &msg)
 {
-    Message temp_msg = *msg;
-    temp_msg.setState(MessageState::PENDING_ACK);
-    __dbConn.updateMsg(temp_msg);
-    *msg = temp_msg;
-    __fcmMsgManager.incrementPendingAckCount();
-
+    // update message status if it is not a retry.
+    if ( msg->getState() != MessageState::PENDING_ACK)
+    {
+        Message temp_msg = *msg;
+        temp_msg.setState(MessageState::PENDING_ACK);
+        __dbConn.updateMsg(temp_msg);
+        *msg = temp_msg;
+        __fcmMsgManager.incrementPendingAckCount();
+    }
     const QJsonDocument& jdoc = *(msg->getPayload());
     emit sendMessage(jdoc);
 }
+
 
 /*!
  * \brief Application::resendPendingUpstreamMessages
@@ -1107,6 +1116,13 @@ void Application::resendPendingUpstreamMessages(const BALSessionPtr_t& sess)
     for (auto& it: msgmap)
     {
         MessagePtr_t msg = it.second;
+        //skip all non downstream message.
+        if (msg->getType() != MessageType::UPSTREAM &&
+            msg->getType() != MessageType::DOWNSTREAM_ACK &&
+            msg->getType() != MessageType::DOWNSTREAM_REJECT)
+        {
+            continue;
+        }
         // resend new and pending ack messages.
         int rcode = msgmanager.canSendOnReconnect(msg);
         if (rcode == 0)
@@ -1116,17 +1132,78 @@ void Application::resendPendingUpstreamMessages(const BALSessionPtr_t& sess)
 
             forwardMsg(msg);
         }
-        else if ( rcode == 2 || rcode == 3)
+        else if ( rcode == 2 )
         {
             bool success = retryWithBackoff(msg);
             if (!success)
                msgmanager.remove(msg->getMessageId());
+        }else if (rcode == 3)
+        {
+            //there is another msg ahead in the same grp so lets skip for now.
+            //we will attempt to resend when the next ack arrives.
         }
         else
         {
            std::cout << "ERROR: Unable to send message with id[" << msg->getMessageId()
                      << "]" << std::endl;
            msgmanager.remove(msg->getMessageId());
+        }
+    }
+}
+
+
+/*!
+ * \brief Application::resendPendingDownstreamMessages
+ * Called after a session is established/restablished with FCM. Resends all
+ * NEW and PENDING ACK messages from the queue.
+ *
+ * REQUIREMENT:
+ * Flow control @ https://firebase.google.com/docs/cloud-messaging/server#flow
+ * ACKs are only valid within the context of one connection.
+ * If the connection is closed before a message can be ACKed,
+ * the app server should wait for CCS to resend the upstream
+ * message before ACKing it again. Similarly, all pending
+ * messages for which an ACK/NACK was not received from CCS
+ * before the connection was closed should be sent again.
+ */
+void Application::resendPendingDownstreamMessages()
+{
+    std::cout << "Attempting to resend all pending messages..." << std::endl;
+    MessageQueue_t& msgmap = __fcmMsgManager.getMessages();
+    for (auto& it: msgmap)
+    {
+        MessagePtr_t msg = it.second;
+        //skip all non downstream message.
+        if (msg->getType() != MessageType::DOWNSTREAM)
+        {
+            continue;
+        }
+
+        // resend new and pending ack messages.
+        int rcode = __fcmMsgManager.canSendOnReconnect(msg);
+        if (rcode == 0)
+        {
+            std::cout << "Resending message with mid[" << msg->getMessageId()
+                      << "] to FCM." << std::endl;
+
+            QJsonDocument& json = *msg->getPayload();
+            emit sendMessage(json);
+        }
+        else if ( rcode == 2)
+        {
+            bool success = retryWithBackoff(msg);
+            if (!success)
+               __fcmMsgManager.remove(msg->getMessageId());
+        }else if (rcode == 3)
+        {
+            //there is another msg ahead in the same grp so lets skip for now.
+            //we will attempt to resend when the next ack arrives.
+        }
+        else
+        {
+           std::cout << "ERROR: Unable to send message with id[" << msg->getMessageId()
+                     << "]" << std::endl;
+           __fcmMsgManager.remove(msg->getMessageId());
         }
     }
 }

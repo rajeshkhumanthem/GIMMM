@@ -17,8 +17,10 @@
     QString str = jsondoc.toJson(QJsonDocument::Indented); \
     out << str.toStdString() << std::endl;
 
-#define FCM_TAG(id) \
-    "RX[" << id << "]:"
+#define FCM_TAG_TX(id) \
+    "TX[" << id << "]:"
 
+#define FCM_TAG_RX(id) \
+    "RX[" << id << "]:"
 
 #endif // MACROS_H
