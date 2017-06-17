@@ -1,8 +1,17 @@
 #include <QCoreApplication>
 
 #include "application.h"
+#include "unittests/gimmmtest.h"
 #include <signal.h>
 
+//#define UNIT_TEST_ON
+
+
+
+#ifdef UNIT_TEST_ON
+    QTEST_MAIN(GimmmTest)
+
+#else
 static int setup_posix_signal_handlers()
 {
     struct sigaction hup, term;
@@ -33,3 +42,5 @@ int main(int argc, char *argv[])
     setup_posix_signal_handlers();
     return a.exec();
 }
+
+#endif

@@ -209,6 +209,7 @@ void Application::setupFcmHandle(FcmConnectionPtr_t fcmConnPtr)
     connect(&fcmConn, SIGNAL(newMessage(int, const QJsonDocument&)),    this, SLOT(handleFcmNewUpstreamMessage(int, const QJsonDocument&)));
     connect(&fcmConn, SIGNAL(newAckMessage(int, const QJsonDocument&)), this, SLOT(handleFcmAckMessage(int, const QJsonDocument&)));
     connect(&fcmConn, SIGNAL(newNackMessage(int, const QJsonDocument&)),this, SLOT(handleFcmNackMessage(int, const QJsonDocument&)));
+   // TODO connect(&fcmConn, SIGNAL(newReceiptMessage(int, const QJsonDocument&)),this, SLOT(handleReceiptMessage(int, const QJsonDocument&)));
 
 
     //setup queued connection to fcm connection handle for sending downstream message to FCM.
@@ -695,9 +696,9 @@ void Application::notifyDownstreamUploadFailure(const MessagePtr_t& msg)
         QJsonDocument gimmm_msg;
         QJsonObject root;
         root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_REJECT";
-        root[gimmmfieldnames::MESSAGE_ID] = msgid.c_str();
-        root[gimmmfieldnames::SESSION_ID] = sessid.c_str();
-        root[gimmmfieldnames::ERROR_STRING]= "Max retry reached.";
+        root[gimmmfieldnames::MESSAGE_ID]   = msgid.c_str();
+        root[gimmmfieldnames::SESSION_ID]   = sessid.c_str();
+        root[gimmmfieldnames::ERROR_DESC]   = "Max retry reached.";
         gimmm_msg.setObject(root);
 
         PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
@@ -849,15 +850,15 @@ void Application::handleBALmsg(
 {
     std::string type = jsondoc.object().value(gimmmfieldnames::MESSAGE_TYPE).toString().toStdString();
     std::string session_id  = jsondoc.object().value(gimmmfieldnames::SESSION_ID).toString().toStdString();
-    if (type == "BAL_LOGON")
+    if (type == "LOGON")
     {
          handleBALLogonRequest(socket, session_id);
     }
-    else if (type == "BAL_PASSTHRU")
+    else if (type == "DOWNSTREAM")
     {
         handleBalPassthruMessage(session_id, jsondoc);
     }
-    else if (type == "BAL_ACK")
+    else if (type == "ACK")
     {
         std::string msgid = jsondoc.object().value(gimmmfieldnames::MESSAGE_ID).toString().toStdString();
         handleBalAckMsg(session_id, msgid);

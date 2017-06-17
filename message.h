@@ -52,7 +52,7 @@ namespace gimmmfieldnames
   static const char* const MESSAGE_ID       = "message_id";
   static const char* const GROUP_ID         = "group_id";
   static const char* const SESSION_ID       = "session_id";
-  static const char* const ERROR_STRING     = "error_string";
+  static const char* const ERROR_DESC       = "error_description";
   static const char* const FCM_DATA         = "fcm_data";
 }
 
@@ -63,11 +63,13 @@ namespace gimmmfieldnames
 enum class MessageType: char
 {
     UNKNOWN = 0,
-    ACK = 1,              // BAL --> GIMMM
-    UPSTREAM = 2,         // GIMMM --> BAL
-    DOWNSTREAM = 3,       // BAL --> GIMMM
-    DOWNSTREAM_ACK = 4,   // GIMMM --> BAL
-    DOWNSTREAM_REJECT = 5 // GIMMM --> BAL
+    LOGON = 1,            // BAL --> GIMMM
+    LOGON_RESPONSE,       // GIMMM --> BAL
+    ACK = 2,              // BAL --> GIMMM
+    UPSTREAM = 3,         // GIMMM --> BAL
+    DOWNSTREAM = 4,       // BAL --> GIMMM
+    DOWNSTREAM_ACK = 5,   // GIMMM --> BAL
+    DOWNSTREAM_REJECT = 6 // GIMMM --> BAL
 };
 
 

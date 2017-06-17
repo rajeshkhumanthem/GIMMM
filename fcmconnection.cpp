@@ -496,6 +496,9 @@ void FcmConnection::handleFcmMessage(const QString& json_str)
         else if ( msg_type == "control")
         {
             handleControlMessage(jdoc);
+        }else if (msg_type == "receipt")
+        {
+            handleReceiptMessage(jdoc);
         }else
         {
             std::stringstream err;
@@ -555,6 +558,16 @@ void FcmConnection::handleControlMessage(const QJsonDocument& control_msg)
         QString qerr(err.str().c_str());
         emit connectionError(__id, qerr);
     }
+}
+
+
+/*!
+ * \brief FcmConnection::handleReceiptMessage
+ * \param receipt_msg
+ */
+void FcmConnection::handleReceiptMessage(const QJsonDocument& receipt_msg)
+{
+    emit newReceiptMessage(__id, receipt_msg);
 }
 
 

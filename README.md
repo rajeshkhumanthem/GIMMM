@@ -20,9 +20,9 @@ At this point, GIMMM is able to
 7) Recieve messages from an IOS app and forward it to the BAL Client (upstream message). 
 8) Recieve messages from the BAL Client and forward it to an ios app (downstream message).  
 9) Hold on to all upstream messages if BAL client connection is down and forward to it after a successfull reconnect.
-
+10) Resend messages to FCM after a disconnect/reconnect.
 TODO:
-1) Resend messages to FCM after a disconnect/reconnect (in progress).
+
 2) Handle 'Reciepts' messages (in progress).
 3) Quick start guide (in progress). 
 4) Reference implementation of BAL in other languages like python, java etc.
