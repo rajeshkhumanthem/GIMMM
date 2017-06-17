@@ -16,6 +16,7 @@
 #include <QTcpServer>
 #include <QSocketNotifier>
 
+// Test
 
 // Authenticated sessions. Key = category, Val = a BAL session.
 typedef std::map<std::string, BALSessionPtr_t>  BalSessionMap_t;
