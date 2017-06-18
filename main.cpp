@@ -21,7 +21,7 @@ static int setup_posix_signal_handlers()
     hup.sa_flags = 0;
     hup.sa_flags |= SA_RESTART;
 
-    if (sigaction(SIGHUP, &hup, 0))
+    if (sigaction(SIGINT, &hup, 0))
      return 1;
 
     term.sa_handler = Application::termSignalHandler;

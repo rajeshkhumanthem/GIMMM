@@ -161,7 +161,7 @@ void Application::setupOsSignalCatcher()
         qFatal("Couldn't create TERM socketpair");
 
     snHup = new QSocketNotifier(sighupFd[1], QSocketNotifier::Read, this);
-    connect(snHup, SIGNAL(activated(int)), this, SLOT(handleSigHup()));
+    connect(snHup, SIGNAL(activated(int)), this, SLOT(handleSigInt()));
     snTerm = new QSocketNotifier(sigtermFd[1], QSocketNotifier::Read, this);
     connect(snTerm, SIGNAL(activated(int)), this, SLOT(handleSigTerm()));
 }
@@ -1248,16 +1248,17 @@ void Application::handleSigTerm()
 
 
 /*!
- * \brief Application::handleSigHup
+ * \brief Application::handleSigInt
  */
-void Application::handleSigHup()
+void Application::handleSigInt()
 {
   snHup->setEnabled(false);
   char tmp;
   ::read(sighupFd[1], &tmp, sizeof(tmp));
 
   // do Qt stuff
-  std::cout << "SIGHUB RECIEVED:" << std::endl;
+  std::cout << "SIGINT RECIEVED:" << std::endl;
+  QCoreApplication::quit();
 
   snHup->setEnabled(true);
 }

@@ -67,7 +67,7 @@ class Application:public QObject
         void sendMessage(const QJsonDocument& data);
     public slots:
         // Qt signal handlers.
-        void handleSigHup();
+        void handleSigInt();
         void handleSigTerm();
 
         //control msg slots
