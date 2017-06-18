@@ -12,6 +12,7 @@
 #include <QSettings>
 #include <QTcpServer>
 #include <QAbstractSocket>
+#include <QFileInfo>
 
 #include <iostream>
 #include <cstdio>
@@ -81,7 +82,17 @@ FcmConnectionPtr_t Application::createFcmHandle()
 void Application::readConfigFile()
 {
     std::cout << "Reading config file..." << std::endl;
-    QSettings ini("./config.ini", QSettings::IniFormat);
+
+    QString filename;
+
+    if (QFileInfo::exists("./config.copy.ini"))
+    {
+        filename = "./config.copy.ini";
+    }else
+    {
+        filename = "./config.ini";
+    }
+    QSettings ini(filename, QSettings::IniFormat);
 
     // FCM SECTION
     __fcmServerId  = ini.value("FCM_SECTION/server_id", "NULL").toString();
