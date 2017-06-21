@@ -909,15 +909,17 @@ void Application::handleBALmsg(
     // TODO validate jsondoc
 
     std::string type = jsondoc.object().value(gimmmfieldnames::MESSAGE_TYPE).toString().toStdString();
-    std::string session_id = socket->property("session_id").toString().toStdString();
+    std::string session_id;
 
 
     if (type == "LOGON")
     {
+         session_id  = jsondoc.object().value(gimmmfieldnames::SESSION_ID).toString().toStdString();
          handleBALLogonRequest(socket, session_id);
     }
     else if (type == "DOWNSTREAM")
     {
+        session_id = socket->property("session_id").toString().toStdString();
         handleBalPassthruMessage(session_id, jsondoc);
     }
     else if (type == "ACK")
