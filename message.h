@@ -2,6 +2,7 @@
 #define MESSAGE_H
 
 #include "exponentialbackoff.h"
+#include "macros.h"
 
 #include <iostream>
 #include <cstdint>
@@ -81,7 +82,6 @@ enum class MessageContentType: char
     UNKNOWN         = 0,
     DATA            = 1, // Handled by client app. 4KB limit.
     NOTIFICATION    = 2  // Display message. 2KB limit.
-
 };
 
 enum class MessageState: char
@@ -106,6 +106,7 @@ class Message
         MessageType         __type;
         ExponentialBackoff  __exboff;
         PayloadPtr_t        __payload;
+        friend std::ostream &operator<< (std::ostream&, const Message&);
     public:
         Message();
         Message(const Message& rhs);
@@ -116,7 +117,8 @@ class Message
                             MessageType type,
                             const MessageId_t& msgid,
                             const GroupId_t& gid,
-                            const SessionId_t& sess_id,
+                            const SessionId_t& source_sess_id,
+                            const SessionId_t& target_sess_id,
                             PayloadPtr_t& payload,
                             MessageState state = MessageState::NEW);
         //setters
@@ -133,7 +135,7 @@ class Message
         const MessageId_t&  getMessageId() const { return __messageId;}
         SequenceId_t        getSequenceId() const { return __sequenceId;}
         GroupId_t           getGroupId() const { return __groupId;}
-        PayloadPtr_t        getPayload() { return __payload;}
+        PayloadPtr_t        getPayload() const { return __payload;}
         const SessionId_t&  getTargetSessionId()const { return __targetSessionId;}
         const SessionId_t&  getSourceSessionId()const { return __sourceSessionId;}
         MessageState        getState()const { return __state;}
@@ -141,6 +143,22 @@ class Message
         int getNextRetryTimeout() { return __exboff.next();}
     private:
 };
+
+inline std::ostream &operator<<( std::ostream& output, const Message& rhs)
+{
+      output << "Message ID:" << rhs.getMessageId() << std::endl;
+      output << "Group ID:" << rhs.getGroupId() << std::endl;
+      output << "Sequence ID:" << rhs.getSequenceId() << std::endl;
+      output << "Source Session ID:" << rhs.getSourceSessionId() << std::endl;
+      output << "Target Session ID:" << rhs.getTargetSessionId() << std::endl;
+      output << "State:" << (int)rhs.getState() << std::endl;
+      output << "Type:" << (int)rhs.getType() << std::endl;
+      output << "Payload:" ;
+      QJsonDocument& jdoc = *(rhs.getPayload());
+      PRINT_JSON_DOC_RAW (output, jdoc);
+
+      return output;
+}
 
 
 #endif // MESSAGE_H

@@ -28,10 +28,11 @@ class BALConn
         QTcpSocket*       __socket;
         QObject*          __timeoutContext;
     public:
-        BALConn(QTcpSocket* socket) :__socket(socket), __timeoutContext(new QObject()){ }
+        BALConn(QTcpSocket* socket) :__socket(socket), __timeoutContext(new QObject())
+        { std::cout << "New BALCONN created. this:" << this << ", socket:" << __socket->socketDescriptor() << std::endl;}
         ~BALConn()
         {
-            std::cout << "DESTROYED BALCONN" << std::endl;
+            std::cout << "DESTROYED BALCONN, this:" << this << ", socket:" << __socket->socketDescriptor() <<  std::endl;
             if (__timeoutContext){ delete __timeoutContext; __timeoutContext = NULL;}
             if (__socket) __socket->deleteLater();
         }
@@ -61,7 +62,7 @@ class BALSession
         BALSession(SessionState state = SessionState::UNAUTHENTICATED);
         ~BALSession();
         void                disconnectFromHost();
-        bool                writeMessage(const QJsonDocument& jsonmsg);
+        void                writeMessage(const QJsonDocument& jsonmsg);
         void                setSessionId(const std::string& sid) { __sessionId = sid;}
         void                setState( SessionState state) { __state = state;}
         void                setConn(BALConnPtr_t con) { __balConn = con;}

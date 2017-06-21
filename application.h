@@ -112,7 +112,9 @@ class Application:public QObject
         void retrySendingDownstreamMessage(MessagePtr_t ptr);
         void notifyDownstreamUploadFailure(const MessagePtr_t& ptr);
 
-        void forwardAckMsg(const MessageId_t& original_msgid);
+        void forwardAckMsg(
+                const SessionId_t& sessid,
+                const MessageId_t& original_msgid);
         void forwardMsg(MessagePtr_t& msg);
         void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
         void resendPendingDownstreamMessages();

@@ -48,7 +48,8 @@ MessagePtr_t Message::createMessage(
         MessageType type,
         const MessageId_t &msgid,
         const GroupId_t &gid,
-        const SessionId_t &sess_id,
+        const SessionId_t &source_sess_id,
+        const SessionId_t &target_sess_id,
         PayloadPtr_t &payload,
         MessageState state)
 {
@@ -57,7 +58,8 @@ MessagePtr_t Message::createMessage(
     ptr->setMessageId(msgid);
     ptr->setSequenceId(seqid);
     ptr->setGroupId(gid);
-    ptr->setTargetSessionId(sess_id);
+    ptr->setSourceSessionId(source_sess_id);
+    ptr->setTargetSessionId(target_sess_id);
     ptr->setPayload(payload);
     ptr->setState(state);
     return ptr;

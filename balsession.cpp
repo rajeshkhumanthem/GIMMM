@@ -1,15 +1,12 @@
 #include "balsession.h"
+#include "macros.h"
+
+#include <sstream>
 
 #include <QTcpSocket>
 #include <QDataStream>
 #include <QJsonDocument>
 
-
-#define TEST_MODE
-
-#ifdef TEST_MODE
-#include "macros.h"
-#endif
 
 /*!
  * \brief BALSession::BALSession
@@ -35,7 +32,7 @@ BALSession::~BALSession()
  * \param jsonmsg
  * \return
  */
-bool BALSession::writeMessage(const QJsonDocument& jsonmsg)
+void BALSession::writeMessage(const QJsonDocument& jsonmsg)
 {
     //std::cout << "Printing json..." << std::endl;
     //PRINT_JSON_DOC(std::cout, jsonmsg);
@@ -47,11 +44,20 @@ bool BALSession::writeMessage(const QJsonDocument& jsonmsg)
         out << jsonmsg.toBinaryData();
         qint64 bytes = __balConn->getSocket()->write(m);
         if (bytes == -1)
-            return false;
-        else
-            return true;
-    }else
-        return false;
+        {
+            std::stringstream err;
+            err << "ERROR: Failed t write to session id:" << __sessionId;
+            THROW_INVALID_ARGUMENT_EXCEPTION(err.str());
+        }
+    }
+    else
+    {
+        std::stringstream err;
+        err << "Failed t write to session id:"
+            << __sessionId << ", Invalid session state:"
+            << (char)__state;
+        THROW_INVALID_ARGUMENT_EXCEPTION(err.str());
+    }
 }
 
 

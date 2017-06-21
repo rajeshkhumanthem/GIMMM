@@ -251,17 +251,15 @@ XMPP Handshake with Google FCM server.
 
 <!-- sample downstream message recieved from a BAL layer -->
 {
-    message_type = "BAL_ACK",
-    session_id = "asdfasdfasdf",
-    message_id = "12345",
-}
-
-{
     message_type = "DOWNSTREAM",
     session_id = "asdfasdfasdf",
     message_id = "12345",
     group_id = "",
     fcm_data = {
+        to = asdfasdfasdfad,
+        data = { "key":"value"},
+        message_id = 12345,
+        time_to_live = 10
     }
 }
 
