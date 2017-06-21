@@ -39,4 +39,4 @@
 Makefile
 gimmm
 moc_*
-*copy.ini
+config.ini
