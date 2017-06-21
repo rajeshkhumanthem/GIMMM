@@ -84,14 +84,19 @@ void Application::readConfigFile()
     std::cout << "Reading config file..." << std::endl;
 
     QString filename;
-
-    if (QFileInfo::exists("./config.copy.ini"))
-    {
-        filename = "./config.copy.ini";
-    }else
+    
+    if (QFileInfo::exists("./config.ini"))
     {
         filename = "./config.ini";
+    }else
+    {
+        std::cout << "ERROR. Configuration file 'config.ini' missing. Please do the following:\n"
+                  << "1) Copy 'config.copy.ini' as 'config.ini' into the same dir as the executable.\n"
+                  << "2) Update 'config.ini' with the appropriate credential and try again. Exiting..."
+                  << std::endl;
+        exit(0);
     }
+
     QSettings ini(filename, QSettings::IniFormat);
 
     // FCM SECTION
