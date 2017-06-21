@@ -909,7 +909,7 @@ void Application::handleBALmsg(
     // TODO validate jsondoc
 
     std::string type = jsondoc.object().value(gimmmfieldnames::MESSAGE_TYPE).toString().toStdString();
-    std::string session_id  = jsondoc.object().value(gimmmfieldnames::SESSION_ID).toString().toStdString();
+    std::string session_id = socket->property("session_id").toString().toStdString();
 
 
     if (type == "LOGON")

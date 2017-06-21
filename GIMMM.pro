@@ -46,7 +46,7 @@ HEADERS += \
     unittests/gimmmtest.h
 
 DISTFILES += \
-    config.ini \
+    config.copy.ini \
     README.md \
     .gitignore \
     xmpp_handshake.xml
