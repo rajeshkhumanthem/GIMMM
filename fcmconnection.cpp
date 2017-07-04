@@ -434,7 +434,7 @@ void FcmConnection::readJid()
     //std::cout << "Recieved JID from FCM server:"<< jid << std::endl;
 
     __state = FcmSessionState::AUTHENTICATED;
-    __expBoff.resetRetry();
+    __expBoff.reset();
     emit sessionEstablished(__id);
 }
 

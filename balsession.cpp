@@ -12,8 +12,11 @@
  * \brief BALSession::BALSession
  * \param state
  */
-BALSession::BALSession(SessionState state)
-    :__state(state)
+BALSession::BALSession(const std::string& sessid,
+                       SessionState state)
+    :__sessionId(sessid),
+     __state(state),
+     __msgManager(sessid)
 {
     //TODO initialize messagemanager with unsent messages.
 }

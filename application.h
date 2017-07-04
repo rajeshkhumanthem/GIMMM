@@ -16,7 +16,6 @@
 #include <QTcpServer>
 #include <QSocketNotifier>
 
-// Test
 
 // Authenticated sessions. Key = category, Val = a BAL session.
 typedef std::map<std::string, BALSessionPtr_t>  BalSessionMap_t;
@@ -45,13 +44,13 @@ class Application:public QObject
         quint16                     __fcmPortNo;        // FCM port no; read from config.ini
         MessageManager              __fcmMsgManager;
 
-        BalSessionMap_t             __balSessionMap;
-        SessionMapU                 __balSessionMapU;
-        DbConnection                __dbConn;
+        BalSessionMap_t             __balSessionMap;    // sessionid --> Authenticated BAL map.
+        SessionMapU                 __balSessionMapU;   // socket --> Unauthenticated BAL map.
+        DbConnection                __dbConn;           // database connection handle.
 
         // Variables to help setup catchers for
         // SIGTERM & SIGHUP
-        static int sighupFd[2];
+        static int sigintFd[2];
         static int sigtermFd[2];
         QSocketNotifier *snHup;
         QSocketNotifier *snTerm;
@@ -80,6 +79,7 @@ class Application:public QObject
         void handleFcmNewUpstreamMessage(int id, const QJsonDocument& json);
         void handleFcmAckMessage(int id, const QJsonDocument& json);
         void handleFcmNackMessage(int id, const QJsonDocument& json);
+        void handleFcmReceiptMessage(int id, const QJsonDocument& json);
         void handleFcmConnectionStarted(int id);
         void handleFcmConnectionEstablished(int id);
         void handleFcmConnectionShutdownStarted(int id);
@@ -92,43 +92,44 @@ class Application:public QObject
         void handleFcmHeartbeatRecieved(int id);
         void handleFcmConnectionDrainingStarted(int id);
     private:
-        // setup functions
-        void start();
-        FcmConnectionPtr_t createFcmHandle();
-        void setupOsSignalCatcher();
-        void setupTcpServer();
-        void setupFcmHandle(FcmConnectionPtr_t fcmconn);
-        void readConfigFile();
-        // GCM URI
-        void printProperties();
-        void retryNacksWithExponentialBackoff(MessagePtr_t ptr);
-        void sendAckMessage(const QJsonDocument& original_msg);
-        std::string getPeerDetail(const QTcpSocket* socket);
-        void handleAuthenticationTimeout(BALConnPtr_t sess);
-        void handleBALLogonRequest(QTcpSocket* socket,
-                                   const std::string& session_id);
-        void handleBalPassthruMessage(const SessionId_t& sesion_id,
-                                     const QJsonDocument& downstream_msg);
-        void retrySendingDownstreamMessage(MessagePtr_t ptr);
-        void notifyDownstreamUploadFailure(const MessagePtr_t& ptr);
+        // FCM downstream stuff
+        void sendFcmAckMessage(const QJsonDocument& original_msg);
+        void sendNextPendingDownstreamMessage(const MessageManager& msgmanager);
+        void resendAllPendingDownstreamMessages();
 
-        void forwardAckMsg(
-                const SessionId_t& sessid,
-                const MessageId_t& original_msgid);
-        void forwardMsg(MessagePtr_t& msg);
-        void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
-        void resendPendingDownstreamMessages();
+        //BAL
+        void handleBalAuthenticationTimeout(BALConnPtr_t sess);
+        void handleBalLogonRequest(QTcpSocket* socket,
+                                   const std::string& session_id);
+        void handleBalDownstreamUploadRequest(const SessionId_t& sesion_id,
+                                     const QJsonDocument& downstream_msg);
+        void notifyDownstreamUploadFailure(const MessagePtr_t& ptr);
         void handleBalAckMsg(const SessionId_t& session_id,
-                             const MessageId_t& msgid);
+                             const SequenceId_t& seqid);
+
+        // helpers
+        void start();
+        void setupOsSignalCatcher();
+        void readConfigFile();
+        void setupTcpServer();
+
+        FcmConnectionPtr_t createFcmHandle();
+        void setupFcmHandle(FcmConnectionPtr_t fcmconn);
+        void uploadToFcm(MessagePtr_t& msg);
         int  getNextFcmConnectionId(){ return ++__fcmConnCount;}
-        void sendNextPendingMessage(const MessageManager& msgmanager);
-        bool retryWithBackoff(MessagePtr_t& msg);
+        void retryDownstreamWithExponentialBackoff(MessagePtr_t& msg);
+        void resendPendingUpstreamMessages(const BALSessionPtr_t& sess);
+        void forwardMsgToBalsession(const std::string& session_id,
+                                    const MessagePtr_t& msg);
+        void forwardMsg(const std::string& session_id, const MessagePtr_t& msg);
+
+        void retryUpstreamWithExponentialBackoff(MessagePtr_t& msg);
 
         BALSessionPtr_t findBalSession(const SessionId_t& session_id);
         MessageManager& findBalMessageManager(const SessionId_t& bal_session_id);
-        void sendNextPendingDownstreamMessage(const MessageManager& msgmanager);
-        void sendNextPendingUpstreamMessage(const MessageManager& msgmanager);
-        void uploadToFcm(MessagePtr_t& msg);
+        void            sendNextPendingUpstreamMessage(const MessageManager& msgmanager);
+        std::string     getPeerDetail(const QTcpSocket* socket);
+        void            printProperties();
 };
 
 #endif // APPLICATION_H

@@ -3,41 +3,36 @@
 
 #include <sstream>
 
+
 /*!
  * \brief MessageManager::MessageManager
  */
-MessageManager::MessageManager(std::int64_t max_pending_allowed)
-    :__maxPendingAllowed(max_pending_allowed),
+MessageManager::MessageManager(const std::string& sessionid,
+                               std::int64_t max_pending_allowed)
+    :__sessionId(sessionid),
+     __maxPendingAllowed(max_pending_allowed),
      __pendingAckCount(0)
 {
 
 }
 
 
-
 /*!
  * \brief MessageManager::add
  * \param msg
  */
-void MessageManager::add(const MessagePtr_t &msg)
+void MessageManager::addMessage(const SequenceId_t& seqid, const MessagePtr_t &msg)
 {
-    addToMessages(msg);
-    addToGroups(msg);
-    addToSessions(msg);
-}
+    FcmMessageId_t  msgid = msg->getFcmMessageId();
 
-
-/*!
- * \brief MessageManager::addToMessages
- * \param msg
- */
-void MessageManager::addToMessages(const MessagePtr_t& msg)
-{
-    SequenceId_t seqid = msg->getSequenceId();
-    MessageId_t  msgid = msg->getMessageId();
-
+    // create fcm message id to sequence id mapping.
     __sequenceIdMap.emplace(msgid, seqid);
+
+    // add to messages
     __messages.emplace(seqid, msg);
+
+    addToGroups(msg);
+    //addToSessions(msg);
 }
 
 
@@ -48,8 +43,7 @@ void MessageManager::addToMessages(const MessagePtr_t& msg)
 void MessageManager::addToGroups(const MessagePtr_t& msg)
 {
     GroupId_t    grpid = msg->getGroupId();
-
-    if ( grpid.empty() != false)
+    if ( !grpid.empty())
     {
         auto grp = __groups.find(grpid);
         if ( grp != __groups.end())
@@ -66,56 +60,26 @@ void MessageManager::addToGroups(const MessagePtr_t& msg)
 
 
 /*!
- * \brief MessageManager::addToSessions
- * \param msg
- */
-void MessageManager::addToSessions(const MessagePtr_t& msg)
-{
-    SessionId_t sessid = msg->getTargetSessionId();
-
-    auto it = __sessions.find(sessid);
-    if ( it != __sessions.end())
-    {
-        it->second->add(msg);
-    }else
-    {
-        SessionPtr_t ptr(new Session(sessid));
-        ptr->add(msg);
-        __sessions.emplace(sessid, ptr);
-    }
-}
-
-
-/*!
  * \brief MessageManager::remove
  * \param msgid
  */
-void MessageManager::remove(const MessageId_t &msgid)
+void MessageManager::removeMessage(const SequenceId_t &seqid)
 {
-    MessagePtr_t msg = findMessage(msgid);
+    MessagePtr_t msg = findMessage(seqid);
 
-    SequenceId_t seqid = msg->getSequenceId();
+    FcmMessageId_t fcm_msgid = msg->getFcmMessageId();
     GroupId_t    grpid = msg->getGroupId();
     SessionId_t sessid = msg->getTargetSessionId();
 
-    removeFromMessages(msgid, seqid);
-    removeFromGroups(grpid, seqid);
-    removeFromSessions(sessid, seqid);
-
-    decrementPendingAckCount();
-}
-
-
-/*!
- * \brief MessageManager::removeFromMessages
- * \param msgid
- */
-void MessageManager::removeFromMessages(
-        const MessageId_t& msgid,
-        const SequenceId_t& seqid)
-{
-    __sequenceIdMap.erase(msgid);
     __messages.erase(seqid);
+    removeFromGroups(grpid, seqid);
+    //removeFromSessions(sessid, seqid);
+
+    // erase msg ->seqid mapping.
+    __sequenceIdMap.erase(fcm_msgid);
+
+    if (msg->getState() == MessageState::PENDING_ACK)
+        decrementPendingAckCount();
 }
 
 
@@ -133,51 +97,39 @@ void MessageManager::removeFromGroups(
 
     auto group = findGroup(gid);
     group->remove(seqid);
-}
 
-
-/*!
- * \brief MessageManager::removeFromSessions
- * \param sessid
- * \param seqid
- */
-void MessageManager::removeFromSessions(
-        const SessionId_t &sessid,
-        const SequenceId_t &seqid)
-{
-    auto sess = findSession(sessid);
-    sess->remove(seqid);
+    if (group->getMessageQueue().empty())
+        __groups.erase(gid);
 }
 
 
 /*!
  * \brief MessageManager::findMessage
- * \param msgid
+ * \param seqid
  * \return
  */
-const MessagePtr_t MessageManager::findMessage(MessageId_t msgid)const
+const MessagePtr_t MessageManager::findMessage(SequenceId_t seqid)const
 {
-    SequenceId_t seqid = findSequenceId(msgid);
     auto it = __messages.find(seqid);
     if ( it != __messages.end())
     {
         return it->second;
     }
     std::stringstream err;
-    err << "Cannot find message for msgid[" << msgid << "]";
+    err << "Cannot find message for seqid[" << seqid << "]";
     THROW_INVALID_ARGUMENT_EXCEPTION(err.str());
 }
 
 
 /*!
- * \brief MessageManager::canSend
+ * \brief MessageManager::canSendMessage
  * \param msg
  * \return 0 = success
  *         1 = bad state.
  *         2 = too many messages in pending ack.
  *         3 = there are message/messages from the same grp awaiting 'ack'.
  */
-int MessageManager::canSend(const MessagePtr_t& msg)const
+int MessageManager::canSendMessage(const MessagePtr_t& msg)const
 {
     // make sure msg is in the correct state.
     if ( msg->getState() != MessageState::NEW)
@@ -203,9 +155,17 @@ int MessageManager::canSend(const MessagePtr_t& msg)const
 }
 
 
-//we resend messages for which we haven't recieved an ack as well on
-//reconnect.
-int MessageManager::canSendOnReconnect(const MessagePtr_t& msg)const
+/*!
+ * \brief MessageManager::canSendMessageOnReconnect
+ * \param msg
+ *  Resend all messages that are in 'NEW' or 'PENDING_ACK'
+ * \return
+ *  0: Success
+ *  1: Bad state
+ *  2: Max pending message breached.
+ *  3: There is another message of the same group ahead of 'msg'.
+ */
+int MessageManager::canSendMessageOnReconnect(const MessagePtr_t& msg)const
 {
     // make sure msg is in the correct state.
     if ( msg->getState() != MessageState::NEW &&
@@ -241,7 +201,7 @@ MessagePtr_t MessageManager::getNext()const
     for ( auto i: __messages)
     {
         MessagePtr_t& msg = i.second;
-        if (canSend(msg) == 0) return msg;
+        if (canSendMessage(msg) == 0) return msg;
     }
     //nothing left to send, return null msg
     MessagePtr_t nullmsg;
@@ -272,7 +232,7 @@ GroupPtr_t MessageManager::findGroup(const GroupId_t& gid) const
  * \param msgid
  * \return
  */
-SequenceId_t MessageManager::findSequenceId(const MessageId_t& msgid)const
+SequenceId_t MessageManager::findSequenceId(const FcmMessageId_t& msgid)const
 {
     auto it = __sequenceIdMap.find(msgid);
     if ( it != __sequenceIdMap.end())
@@ -285,22 +245,17 @@ SequenceId_t MessageManager::findSequenceId(const MessageId_t& msgid)const
 }
 
 
-/*!
- * \brief MessageManager::findSession
- * \param sessid
- * \return
- */
-SessionPtr_t MessageManager::findSession(const SessionId_t& sessid)const
+const MessagePtr_t MessageManager::findMessageWithFcmMsgId(FcmMessageId_t fcm_msgid)const
 {
-    auto it = __sessions.find(sessid);
-    if ( it != __sessions.end())
-    {
-        return it->second;
-    }
-    std::stringstream err;
-    err << "Cannot find session with session id[" << sessid << "]";
-    THROW_INVALID_ARGUMENT_EXCEPTION(err.str());
+    SequenceId_t seqid = findSequenceId(fcm_msgid);
+    MessagePtr_t msg = findMessage(seqid);
+    return msg;
 }
 
+void MessageManager::removeMessageWithFcmMsgId(FcmMessageId_t fcm_msgid)
+{
+    SequenceId_t seqid = findSequenceId(fcm_msgid);
+    removeMessage(seqid);
+}
 
 

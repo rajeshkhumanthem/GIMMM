@@ -43,7 +43,7 @@ class FcmConnection:public QObject
         QString                     __fcmServerId; // FCM server id; read from config.ini
         QString                     __fcmServerKey;// FCM server key; read from config.ini
         QString                     __fcmHostAddress;
-        quint16                     __fcmPortNo; //
+        quint16                     __fcmPortNo;   //
         std::vector<std::string>    __authMethodVect; //
         FcmSessionState             __state;
         ExponentialBackoff          __expBoff;
@@ -78,6 +78,7 @@ class FcmConnection:public QObject
         void connectionLost(int id);
         void connectionError(int id, const QString& error);
         void connectionDrainingStarted(int id);
+        void connectionDrainingCompleted(int id);
         void xmppHandshakeStarted(int id);
         void saslSucess(int id);
         void streamOpened(int id);
@@ -89,8 +90,6 @@ class FcmConnection:public QObject
         void newAckMessage(int id, const QJsonDocument& msg);
         void newNackMessage(int id, const QJsonDocument& msg);
         void newReceiptMessage(int id, const QJsonDocument& msg);
-        void connectionDrainingCompleted(int id);
-        // TODO void messageSent(const QString& msgid);
     private:
         void parseXml();
         void handleStartElement();

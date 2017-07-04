@@ -2,18 +2,30 @@
 #define DBCONNECTION_H
 
 #include "message.h"
+#include "sqlite/sqlite3.h"
+
+class MessageManager;
 
 class DbConnection
 {
-        std::uint64_t __sequenceId;
-        std::uint64_t __messageId;
+        SequenceId_t __sequenceId;
+        sqlite3* __dbhandle;
+        sqlite3_stmt* __insertStmt;
+        sqlite3_stmt* __updateStmt;
     public:
-        explicit DbConnection(std::int64_t sid = 0):__sequenceId(sid){;}
+        DbConnection();
+        ~DbConnection();
         SequenceId_t getNextSequenceId();
-        MessageId_t getNextMessageId();
         void saveMsg(const Message& msg);
-        void updateMsg(const Message& msg);
-        void deleteMsg(const Message& msg);
+        void updateMsgState(const Message& msg, MessageState new_state);
+        void loadPendingMessages(MessageManager& msgmanager);
+    private:
+        void createDb();
+        void createTables();
+        void createIndex();
+        void readDb();
+        void initSequenceId();
+        void prepareStatements();
 };
 
 #endif // DBCONNECTION_H

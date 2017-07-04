@@ -15,7 +15,8 @@
 /*!
  * \brief The SessionState enum
  */
-enum class SessionState: char{
+enum class SessionState: char
+{
     UNAUTHENTICATED = 'U',
     AUTHENTICATED = 'A'
 };
@@ -59,7 +60,8 @@ class BALSession
 
       friend std::ostream &operator<< (std::ostream&, const BALSession&);
     public:
-        BALSession(SessionState state = SessionState::UNAUTHENTICATED);
+        BALSession(const std::string& sessid,
+                   SessionState state = SessionState::UNAUTHENTICATED);
         ~BALSession();
         void                disconnectFromHost();
         void                writeMessage(const QJsonDocument& jsonmsg);

@@ -1,19 +1,19 @@
 #include "exponentialbackoff.h"
 
+#include <iostream>
 
 /*!
  * \brief ExponentialBackoff::ExponentialBackoff
  * \param start_val
  * \param max_retry
  */
-ExponentialBackoff::ExponentialBackoff(int start_val, int max_retry)
+ExponentialBackoff::ExponentialBackoff(int max_retry)
       :__engine(__seeder()),
         __distribution(100, 1000),
-        __retry(start_val)
+        __retry(0),
+        __seedVal(2)
 {
-        if ( max_retry > -1)
-            __maxRetry = max_retry + start_val;
-
+    __maxRetry = max_retry;
 }
 
 
@@ -22,6 +22,7 @@ ExponentialBackoff::ExponentialBackoff(const ExponentialBackoff &rhs)
     __engine = rhs.__engine;
     __distribution = rhs.__distribution;
     __retry = rhs.__retry;
+    __seedVal = rhs.__seedVal;
     __maxRetry = rhs.__maxRetry;
 }
 
@@ -33,6 +34,7 @@ const ExponentialBackoff& ExponentialBackoff::operator =(const ExponentialBackof
         __engine = rhs.__engine;
         __distribution = rhs.__distribution;
         __retry = rhs.__retry;
+        __seedVal = rhs.__seedVal;
         __maxRetry = rhs.__maxRetry;
     }
     return *this;
@@ -44,14 +46,20 @@ const ExponentialBackoff& ExponentialBackoff::operator =(const ExponentialBackof
  */
 int ExponentialBackoff::next()
 {
-    if ((__maxRetry != -1) &&
+    __retry++;
+
+    //init retry after max retry so that
+    //we start again from a small val.
+    if ((__maxRetry != NO_MAX_RETRY) &&
             (__retry > __maxRetry))
-      return -1;
+    {
+        __retry = 0;
+        __seedVal = 2;
+    }
 
     int random_delta = __distribution(__engine);
-    int r = 0.5 * (pow(2, __retry) - 1);
-
+    int r = 0.5 * (pow(2, __seedVal) - 1);
     int next = r * 1000 + random_delta;
-    __retry++;
+    __seedVal++;
     return next;
 }

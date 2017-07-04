@@ -7,38 +7,11 @@
 
 #include <queue>
 #include <set>
+#include <sstream>
 
+
+typedef std::map<FcmMessageId_t, SequenceId_t>    SequenceIdMap_t;
 typedef std::map<SequenceId_t, MessagePtr_t>    MessageQueue_t;
-
-/*!
- * \brief The Session class
- *        messages grp by session id so that we can re
- *        send all pending messages when a session reconnects.
- *        For downstream message, this is the fcm session.
- */
-class Session
-{
-    SessionId_t         __sessionId;
-    MessageQueue_t      __mainMsgQueue;//SequenceId_t, message.
-    public:
-        Session(SessionId_t sid):__sessionId(sid){;}
-        void add(const MessagePtr_t& msg);
-        void remove(const SequenceId_t& seqid);
-};
-
-typedef std::shared_ptr<Session> SessionPtr_t;
-
-inline void Session::add(const MessagePtr_t &msg)
-{
-    SequenceId_t sid = msg->getSequenceId();
-    __mainMsgQueue.emplace(sid, msg);
-}
-
-inline void Session::remove(const SequenceId_t &seqid)
-{
-    __mainMsgQueue.erase(seqid);
-}
-
 
 /*!
  * \brief The Group class
@@ -48,18 +21,35 @@ class Group
         GroupId_t                               __groupId;
         MessageQueue_t                          __msgQueue;
     public:
-        Group(const GroupId_t& gid):__groupId(gid){;}
+        Group(const GroupId_t& gid)
+            :__groupId(gid)
+        {
+            if (__groupId.empty())
+            {
+                std::string err = "Group id cannot be blank";
+                THROW_INVALID_ARGUMENT_EXCEPTION (err);
+            }
+        }
+
+        //getter
+        GroupId_t getGroupId()const { return __groupId;}
+        const MessageQueue_t&  getMessageQueue() const { return __msgQueue;}
+
         void add(const MessagePtr_t& msg);
         void remove(const SequenceId_t& msgid);
         bool canSend(const MessagePtr_t& msg);
 };
 
 typedef std::shared_ptr<Group> GroupPtr_t;
+typedef std::map<GroupId_t, GroupPtr_t>         GroupMap_t;
 
 inline void Group::add(const MessagePtr_t &msg)
 {
-    SequenceId_t seqid = msg->getSequenceId();
-    __msgQueue.emplace(seqid, msg);
+    if ( msg->getGroupId() == __groupId)
+    {
+        SequenceId_t seqid = msg->getSequenceId();
+        __msgQueue.emplace(seqid, msg);
+    }
 }
 
 inline void Group::remove(const SequenceId_t &sequence_id)
@@ -80,10 +70,10 @@ inline void Group::remove(const SequenceId_t &sequence_id)
  */
 inline bool Group::canSend(const MessagePtr_t &msg)
 {
-    const MessageId_t& mid = msg->getMessageId();
+    const SequenceId_t& mid = msg->getSequenceId();
     auto it = __msgQueue.begin();
     auto front = it->second;
-    if (mid == front->getMessageId())
+    if (mid == front->getSequenceId())
         return true;
     else
         return false;
@@ -92,45 +82,57 @@ inline bool Group::canSend(const MessagePtr_t &msg)
 
 /*!
  * \brief The MessageManager class
+ * MessageManager holds all the upstream/downstream messages for each session until
+ * an acknowledgement is recieved. It also arbiters whether a message can be send or
+ * not based on certain rule viz max pending rule, group rule etc.
  */
 class MessageManager
 {
+    std::string                             __sessionId;
     // # of messages pending ack from FCM
     std::uint64_t                           __maxPendingAllowed;
     std::uint64_t                           __pendingAckCount;
+    //sequence id lookup map.
+    SequenceIdMap_t                         __sequenceIdMap;//msgid --> SequenceId_t
+
     //main queue that stores msg in order or reciept.
-    std::map<MessageId_t, SequenceId_t>     __sequenceIdMap;//msgid --> SequenceId_t
     MessageQueue_t                          __messages;//SequenceId_t, message. //TODO check for order.
-    // msgid --> group information .
-    std::map<GroupId_t, GroupPtr_t>         __groups;
-    // sessionid --> Session
-    std::map<SessionId_t, SessionPtr_t>     __sessions;
+    GroupMap_t                              __groups;// msgid --> group information .
 
     public:
-        explicit MessageManager(std::int64_t maxpendingallowed = MAX_PENDING_MESSAGES);
-        std::uint64_t       getPendingAckCount()const { return __pendingAckCount;}
-        void                add(const MessagePtr_t& msg);
-        void                updateState(const MessageId_t& msg, MessageState newstate);
-        void                remove(const MessageId_t& msgid);
-        int                 canSend(const MessagePtr_t& msg)const;
-        int                 canSendOnReconnect(const MessagePtr_t& msg)const;
+        MessageManager(const std::string& sessionid,
+                       std::int64_t maxpendingallowed = MAX_PENDING_MESSAGES);
+
+        // getters
+        std::string             getSessionId() const { return __sessionId;}
+        std::uint64_t           getMaxPendingAllowed()const { return __maxPendingAllowed;}
+        std::uint64_t           getMaxPendingAckCount()const { return __pendingAckCount;}
+        const SequenceIdMap_t&  getSequenceIdMap() const { return __sequenceIdMap;}
+        std::uint64_t           getPendingAckCount()const { return __pendingAckCount;}
+        MessageQueue_t&         getMessages() { return __messages;}
+        const GroupMap_t&       getGroupsMap()const { return __groups;}
+
+
+
+        void                addMessage(const SequenceId_t& seqid, const MessagePtr_t& msg);
+        void                removeMessage(const SequenceId_t& seqid);
+        const MessagePtr_t  findMessage(SequenceId_t seqid)const;
         MessagePtr_t        getNext()const;
-        MessageQueue_t&     getMessages() { return __messages;}
-        const MessagePtr_t  findMessage(MessageId_t msgid)const;
         bool                isMessagePending() const { return (__pendingAckCount > __maxPendingAllowed);}
         void                incrementPendingAckCount() { __pendingAckCount++;}
+        int                 canSendMessage(const MessagePtr_t& msg)const;
+        int                 canSendMessageOnReconnect(const MessagePtr_t& msg)const;
+        //convenience functions.
+        const MessagePtr_t  findMessageWithFcmMsgId(FcmMessageId_t fcm_msgid)const;
+        void                removeMessageWithFcmMsgId(FcmMessageId_t fcm_msgid);
 
     private:
-        void                addToMessages(const MessagePtr_t& msg);
         void                addToGroups(const MessagePtr_t& msg);
-        void                addToSessions(const MessagePtr_t& msg);
-        void                removeFromMessages(const MessageId_t& msgid, const SequenceId_t& seqid);
+        void                decrementPendingAckCount(){ if (__pendingAckCount != 0) __pendingAckCount--;}
+        GroupPtr_t          findGroup(const GroupId_t& gid)const;
         void                removeFromGroups(const GroupId_t& gid, const SequenceId_t& seqid);
         void                removeFromSessions(const SessionId_t& sessid, const SequenceId_t& seqid);
-        void                decrementPendingAckCount(){ __pendingAckCount--;}
-        SequenceId_t        findSequenceId(const MessageId_t& msgid) const;
-        GroupPtr_t          findGroup(const GroupId_t& gid)const;
-        SessionPtr_t        findSession(const SessionId_t& sessid)const;
+        SequenceId_t        findSequenceId(const FcmMessageId_t& msgid) const;
 };
 
 #endif // MESSAGEMANAGER_H

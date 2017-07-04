@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 
-int Application::sighupFd[2];
+int Application::sigintFd[2];
 int Application::sigtermFd[2];
 
 
@@ -31,7 +31,8 @@ int Application::sigtermFd[2];
  * \brief Application::Application
  */
 Application::Application()
-    :__fcmConnCount(0)
+    :__fcmConnCount(0),
+     __fcmMsgManager(std::string("fcm"))
 {
     start();
 }
@@ -42,8 +43,6 @@ Application::Application()
  */
 Application::~Application()
 {
-    //std::cout << "Closing connection to FCM.." << std::endl;
-    //std::cout << "Shutting down...GOODBYE." << std::endl;
     __serverSocket.close();
 }
 
@@ -57,6 +56,22 @@ void Application::start()
     setupOsSignalCatcher();
     setupTcpServer();
 
+    // load pending messages
+    std::cout << "Loading downstream pending messages..." << std::endl;
+    __dbConn.loadPendingMessages(__fcmMsgManager);
+    std::cout << "Loaded[" << __fcmMsgManager.getMessages().size()
+              <<  "] pending downstream messages.\n" << std::endl;
+    for ( auto &&i : __balSessionMap)
+    {
+        MessageManager& msgmanager = i.second->getMessageManager();
+        std::cout << "Loading upstream pending messages for bal session["
+                  << msgmanager.getSessionId() << "]..."<< std::endl;
+        __dbConn.loadPendingMessages(msgmanager);
+        std::cout << "Loaded[" << msgmanager.getMessages().size()
+              <<  "] pending downstream messages.\n" << std::endl;
+    }
+
+    //connect to fcm.
     FcmConnectionPtr_t fcmConn = createFcmHandle();
     setupFcmHandle(fcmConn);
     fcmConn->connectToFcm(__fcmServerId, __fcmServerKey, __fcmHostAddress, __fcmPortNo);
@@ -148,6 +163,7 @@ void Application::readConfigFile()
         exit(0);
     }
 
+    // TODO support more than one.
     // BAL session SECTION
     QString balclient = ini.value("BAL_SECTION/session_id", "NULL").toString();
     if ( balclient == "NULL")
@@ -155,8 +171,7 @@ void Application::readConfigFile()
         std::cout<< "ERROR: No BAL client session found. Exiting..." << std::endl;
         exit(0);
     }
-    BALSessionPtr_t sess(new BALSession());
-    sess->setSessionId(balclient.toStdString());
+    BALSessionPtr_t sess(new BALSession(balclient.toStdString()));
     __balSessionMap.emplace(balclient.toStdString(), sess);
     printProperties();
 }
@@ -170,13 +185,13 @@ void Application::readConfigFile()
  */
 void Application::setupOsSignalCatcher()
 {
-    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sighupFd))
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sigintFd))
         qFatal("Couldn't create HUP socketpair");
 
     if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sigtermFd))
         qFatal("Couldn't create TERM socketpair");
 
-    snHup = new QSocketNotifier(sighupFd[1], QSocketNotifier::Read, this);
+    snHup = new QSocketNotifier(sigintFd[1], QSocketNotifier::Read, this);
     connect(snHup, SIGNAL(activated(int)), this, SLOT(handleSigInt()));
     snTerm = new QSocketNotifier(sigtermFd[1], QSocketNotifier::Read, this);
     connect(snTerm, SIGNAL(activated(int)), this, SLOT(handleSigTerm()));
@@ -225,7 +240,7 @@ void Application::setupFcmHandle(FcmConnectionPtr_t fcmConnPtr)
     connect(&fcmConn, SIGNAL(newMessage(int, const QJsonDocument&)),    this, SLOT(handleFcmNewUpstreamMessage(int, const QJsonDocument&)));
     connect(&fcmConn, SIGNAL(newAckMessage(int, const QJsonDocument&)), this, SLOT(handleFcmAckMessage(int, const QJsonDocument&)));
     connect(&fcmConn, SIGNAL(newNackMessage(int, const QJsonDocument&)),this, SLOT(handleFcmNackMessage(int, const QJsonDocument&)));
-   // TODO connect(&fcmConn, SIGNAL(newReceiptMessage(int, const QJsonDocument&)),this, SLOT(handleReceiptMessage(int, const QJsonDocument&)));
+    connect(&fcmConn, SIGNAL(newReceiptMessage(int, const QJsonDocument&)),this, SLOT(handleFcmReceiptMessage(int, const QJsonDocument&)));
 
 
     //setup queued connection to fcm connection handle for sending downstream message to FCM.
@@ -299,7 +314,8 @@ void Application::handleFcmSessionEstablished(int id)
     std::cout << "-     SESSION WITH FCM ESTABLISHED SUCCESSFULLY        -" << std::endl;
     std::cout << "-     SESSION ID: " << __fcmServerId.toStdString() <<"\n";
     std::cout << "----------------------------------------------------------------------------------------------------" << std::endl;
-    resendPendingDownstreamMessages();
+
+    resendAllPendingDownstreamMessages();
 }
 
 /*!
@@ -350,7 +366,7 @@ void Application::handleFcmConnectionDrainingStarted(int id)
 
 
 /*!
- * \brief Application::handleNewUpstreamMessage - we convert 'client_msg' to an internal GIMMM
+ * \brief Application::handleFcmNewUpstreamMessage - we convert 'client_msg' to an internal GIMMM
  *  message format and store it in a temporary storage before forwarding it to the BAL session
  *  it was intended for. We then wait for an 'upstream_ack' message from the BAL.
  *
@@ -360,76 +376,50 @@ void Application::handleFcmNewUpstreamMessage(
                                         int id,
                                         const QJsonDocument& client_msg)
 {
+    std::cout << FCM_TAG_RX(id);
+    PRINT_JSON_DOC_RAW(std::cout, client_msg);
+    std::cout << std::endl;
 
-    std::cout << "-----------------------------------START Handle New Upstream Message-----------------------------------------" << std::endl;
-    std::cout << FCM_TAG_RX(id) << "[" << client_msg.toJson().toStdString() << "]" << std::endl;
+    std::cout << "-----------------------------------Start handleFcmNewUpstreamMessage-----------------------------------------" << std::endl;
     try
     {
         std::string from = client_msg.object().value(fcmfieldnames::FROM).toString().toStdString();
         std::string sessionid = client_msg.object().value(fcmfieldnames::CATEGORY).toString().toStdString();
-        std::string mid = client_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
+        std::string fcm_mid = client_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
 
-        std::cout << "Recieved 'upstream' message with msg id [" << mid<< "] from:" << from << std::endl;
-        std::cout << "Target session id:" << sessionid  << std::endl;
+        std::cout << "Recieved 'upstream' message with msg id [" << fcm_mid<< "] from:" << from << std::endl;
+        std::cout << "Target session id: " << sessionid  << std::endl;
 
+        SequenceId_t nextseqid = __dbConn.getNextSequenceId();
 
-        // add gimmm header before sending to BAL.
+        // create gimmm message.
         QJsonDocument gimmm_msg;
         QJsonObject root;
+        root[gimmmfieldnames::SEQUENCE_ID] = nextseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "UPSTREAM",
         root[gimmmfieldnames::SESSION_ID]   =  sessionid.c_str();
         root[gimmmfieldnames::FCM_DATA] = client_msg.object();
         gimmm_msg.setObject(root);
-
-        SequenceId_t nextseqid = __dbConn.getNextSequenceId();
         PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
 
-        MessagePtr_t msgptr(new Message());
-        msgptr->setSequenceId(nextseqid);
-        msgptr->setPayload(pmsg);
-        msgptr->setType(MessageType::UPSTREAM);
-        msgptr->setMessageId(mid);
-        msgptr->setTargetSessionId(sessionid);
-        msgptr->setSourceSessionId("fcm");
+        Message* msgp = new Message( nextseqid,
+                                     MessageType::UPSTREAM,
+                                     fcm_mid,
+                                     "",
+                                     "fcm",
+                                     sessionid,
+                                     pmsg);
+
+        MessagePtr_t msgptr(msgp);
 
         std::cout << "New Message created:" << std::endl;
         std::cout << *msgptr << std::endl;
 
         __dbConn.saveMsg(*msgptr);
         // Save successfull, send ack back to FCM.
-        sendAckMessage(client_msg);
-
-        std::cout << "Start forwarding message to BAL...." << std::endl;
-        // forward the message to the intended BAL.
-        MessageManager& msgmanager = findBalMessageManager(sessionid);
-        msgmanager.add(msgptr);
-        int rcode = msgmanager.canSend(msgptr);
-        std::cout << "Can Send rcode:" << rcode << std::endl;
-        switch (rcode)
-        {
-            case 0:
-            {
-                forwardMsg(msgptr);
-                break;
-            }
-            case 1:
-            {
-                std::cout << "Failed to forward message. Message is not in the NEW state."
-                          << std::endl;
-                break;
-            }
-            case 2:
-            {
-                std::cout << "Failed to forward message. Max pending messages[" << MAX_PENDING_MESSAGES
-                          << "] breached" << std::endl;
-                break;
-            }
-            default:
-            {
-                std::cout << "Failed to foward upstream message with rcode[" << rcode << "]"
-                          << std::endl;
-            }
-        }
+        sendFcmAckMessage(client_msg);
+        // Lets forward msg to the bal message.
+        forwardMsgToBalsession(sessionid, msgptr);
     }
     catch (std::exception& err)
     {
@@ -437,9 +427,9 @@ void Application::handleFcmNewUpstreamMessage(
     }
     catch (...)
     {
-
+        std::cout << "ERROR: Unknown message caught." << std::endl;
     }
-    std::cout << "-----------------------------------END Handle New Upstream Message-----------------------------------------" << std::endl;
+    std::cout << "-----------------------------------End handleFcmNewUpstreamMessage-----------------------------------------" << std::endl;
 }
 
 
@@ -453,29 +443,50 @@ void Application::handleFcmNewUpstreamMessage(
  */
 void Application::handleFcmAckMessage(int id, const QJsonDocument& ack_msg)
 {
-    std::cout << "-----------------------------------START handleFcmAckMessage -----------------------------------------" << std::endl;
+    std::cout << "-----------------------------------Start handleFcmAckMessage -----------------------------------------" << std::endl;
+    PRINT_JSON_DOC_RAW(std::cout, ack_msg);
 
     std::string mid = ack_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
     std::cout << FCM_TAG_RX(id) << "Received downstream 'ack' from FCM for message id:" << mid << std::endl;
 
     try
     {
-        MessagePtr_t msg = __fcmMsgManager.findMessage(mid);
-        std::cout << *msg << std::endl;
+        MessagePtr_t msg = __fcmMsgManager.findMessageWithFcmMsgId(mid);
         SessionId_t sessid = msg->getSourceSessionId();
 
-        Message temp_msg = *msg;
-        temp_msg.setState(MessageState::DELIVERED);
-        __dbConn.updateMsg(temp_msg);
-        *msg = temp_msg;
-
-        __fcmMsgManager.remove(mid);
+        __dbConn.updateMsgState(*msg, MessageState::DELIVERED);
+        __fcmMsgManager.removeMessageWithFcmMsgId(mid);
 
         // a slot just opened up, lets send another msg from the 'pending msg queue' to fcm
         sendNextPendingDownstreamMessage(__fcmMsgManager);
 
         //fwd to BAL
-        forwardAckMsg(sessid, mid);
+        std::cout << "Forwarding downstream Ack msg to sessionid:" << sessid << std::endl;
+        SequenceId_t newseqid = __dbConn.getNextSequenceId();
+
+        // add gimmm header and foward it to BAL.
+        QJsonDocument gimmm_msg;
+        QJsonObject root;
+        root[gimmmfieldnames::SEQUENCE_ID]  = newseqid;
+        root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_ACK",
+        root[gimmmfieldnames::SESSION_ID]   = sessid.c_str();
+        root[gimmmfieldnames::FCM_DATA]     = ack_msg.object();
+        gimmm_msg.setObject(root);
+
+        PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
+
+        std::string fcm_mid = ack_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
+        MessagePtr_t balack( new Message(
+                                  newseqid,
+                                  MessageType::DOWNSTREAM_ACK,
+                                  fcm_mid,
+                                  "",
+                                  "fcm",
+                                  sessid,
+                                  pmsg));
+
+        __dbConn.saveMsg(*balack);
+        forwardMsgToBalsession(sessid, balack);
     }
     catch (std::exception& err)
     {
@@ -483,10 +494,9 @@ void Application::handleFcmAckMessage(int id, const QJsonDocument& ack_msg)
     }
     catch (...)
     {
-
+        std::cout << "ERROR: Unknown message caught." << std::endl;
     }
-
-    std::cout << "-----------------------------------END handleFcmAckMessage -----------------------------------------" << std::endl;
+    std::cout << "-----------------------------------End handleFcmAckMessage -----------------------------------------" << std::endl;
 }
 
 
@@ -496,36 +506,30 @@ void Application::handleFcmAckMessage(int id, const QJsonDocument& ack_msg)
  */
 void Application::handleFcmNackMessage(int id, const QJsonDocument& nack_msg)
 {
-    std::cout << "-----------------------------------START Handle Nack Message----------------------------------------" << std::endl;
-    PRINT_JSON_DOC(std::cout, nack_msg);
+    std::cout << "-----------------------------------Start Handle Nack Message----------------------------------------" << std::endl;
+    PRINT_JSON_DOC_RAW(std::cout, nack_msg);
+
     std::string msg_id = nack_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
-    std::string error = nack_msg.object().value(fcmfieldnames::ERROR).toString().toStdString();
+    std::string error  = nack_msg.object().value(fcmfieldnames::ERROR).toString().toStdString();
     std::string error_desc = nack_msg.object().value(fcmfieldnames::ERROR_DESC).toString().toStdString();
-    std::cout << FCM_TAG_RX(id) << "Recieved 'nack' for message id:"<< msg_id
+    std::cout << FCM_TAG_RX(id) << "Received 'nack' for message id:"<< msg_id
               << ", error:" << error
               << ", error description:" << error_desc << std::endl;
 
     try
     {
-        MessagePtr_t origmsg = __fcmMsgManager.findMessage(msg_id);
+        MessagePtr_t origmsg = __fcmMsgManager.findMessageWithFcmMsgId(msg_id);
         if ( error == "SERVICE_UNAVAILABLE" ||
              error == "INTERNAL_SERVER_ERROR" ||
              error == "DEVICE_MESSAGE_RATE_EXCEEDED" ||
              error == "TOPICS_MESSAGE_RATE_EXCEEDED" ||
              error == "CONNECTION_DRAINING")
          {
-
-            Message temp_msg = *origmsg;
-            temp_msg.setState(MessageState::NACK);
-            __dbConn.saveMsg(temp_msg);
-            *origmsg = temp_msg;
-
-            retryNacksWithExponentialBackoff(origmsg);
+            retryDownstreamWithExponentialBackoff(origmsg);
          }else
          {
-            __fcmMsgManager.remove(msg_id);
-            origmsg->setState(MessageState::DELIVERY_FAILED);
-            __dbConn.updateMsg(*origmsg);
+            __dbConn.updateMsgState(*origmsg, MessageState::DELIVERY_FAILED);
+            __fcmMsgManager.removeMessageWithFcmMsgId(msg_id);
             // new slot opened.send another pending message.
             sendNextPendingDownstreamMessage(__fcmMsgManager);
 
@@ -539,10 +543,69 @@ void Application::handleFcmNackMessage(int id, const QJsonDocument& nack_msg)
     }
     catch (...)
     {
-
+        std::cout << "ERROR: Unknown message caught." << std::endl;
     }
 
-    std::cout << "-----------------------------------END   Handle Nack Message----------------------------------------" << std::endl;
+    std::cout << "-----------------------------------End Handle Nack Message----------------------------------------" << std::endl;
+}
+
+
+/*!
+ * \brief Application::handleFcmReceiptMessage
+ * \param id
+ * \param recpt_msg
+ */
+void Application::handleFcmReceiptMessage(int id, const QJsonDocument& recpt_msg)
+{
+    std::cout << "-----------------------------------Start handleFcmReceiptMessage -----------------------------------------" << std::endl;
+    PRINT_JSON_DOC(std::cout, recpt_msg);
+
+    std::string from = recpt_msg.object().value(fcmfieldnames::FROM).toString().toStdString();
+    std::string sessionid = recpt_msg.object().value(fcmfieldnames::CATEGORY).toString().toStdString();
+    std::string fcm_mid = recpt_msg.object().value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
+
+    std::cout << FCM_TAG_RX(id) << "Received downstream 'receipt' from FCM, message id:"
+              << fcm_mid << std::endl;
+
+    try
+    {
+        SequenceId_t nextseqid = __dbConn.getNextSequenceId();
+
+        // create gimmm message.
+        QJsonDocument gimmm_msg;
+        QJsonObject root;
+        root[gimmmfieldnames::SEQUENCE_ID] = nextseqid;
+        root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_RECEIPT",
+        root[gimmmfieldnames::SESSION_ID]   =  sessionid.c_str();
+        root[gimmmfieldnames::FCM_DATA] = recpt_msg.object();
+        gimmm_msg.setObject(root);
+        PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
+
+        MessagePtr_t msgptr(new Message());
+        msgptr->setSequenceId(nextseqid);
+        msgptr->setType(MessageType::DOWNSTREAM_RECEIPT);
+        msgptr->setFcmMessageId(fcm_mid);
+        msgptr->setSourceSessionId("fcm");
+        msgptr->setTargetSessionId(sessionid);
+        msgptr->setPayload(pmsg);
+        msgptr->setState(MessageState::NEW);
+
+        std::cout << "New receipt message created:" << std::endl;
+        std::cout << *msgptr << std::endl;
+
+        __dbConn.saveMsg(*msgptr);
+        forwardMsgToBalsession(sessionid, msgptr);
+    }
+    catch (std::exception& err)
+    {
+        PRINT_EXCEPTION_STRING(std::cout, err);
+    }
+    catch (...)
+    {
+
+        std::cout << "ERROR: Unknown message caught." << std::endl;
+    }
+    std::cout << "-----------------------------------End handleFcmReceiptMessage -------------------------------------------" << std::endl;
 }
 
 
@@ -555,8 +618,8 @@ void Application::sendNextPendingDownstreamMessage(const MessageManager& msgmana
     MessagePtr_t nextmsg = msgmanager.getNext();
     if ( nextmsg)
     {
-        std::cout << "Sending downstream message with msgid ["
-                  << nextmsg->getMessageId() << "] from pending queue." << std::endl;
+        std::cout << "Sending next downstream message with id["
+                  << nextmsg->getMessageIdentifier() << "] from pending queue." << std::endl;
         uploadToFcm(nextmsg);
         // print warning as necessary.
         if (msgmanager.isMessagePending())
@@ -578,8 +641,8 @@ void Application::sendNextPendingUpstreamMessage(const MessageManager& msgmanage
     MessagePtr_t nextmsg = msgmanager.getNext();
     if ( nextmsg)
     {
-        std::cout << "Sending upstream message with msgid ["
-                  << nextmsg->getMessageId() << "] from pending queue." << std::endl;
+        std::cout << "Sending upstream message with id ["
+                  << nextmsg->getMessageIdentifier() << "] from pending queue." << std::endl;
         const QJsonDocument& jdoc = *(nextmsg->getPayload());
 
         SessionId_t sessid = nextmsg->getTargetSessionId();
@@ -599,79 +662,10 @@ void Application::sendNextPendingUpstreamMessage(const MessageManager& msgmanage
 
 
 /*!
- * \brief Application::forwardAckMsg
- * \param original_msgid
+ * \brief Application::findBalMessageManager
+ * \param session_id
+ * \return
  */
-void Application::forwardAckMsg(const SessionId_t& sessid, const MessageId_t& original_msgid)
-{
-    std::cout << "forwardAckMsg to sessionid:" << sessid << std::endl;
-    try
-    {
-        // add gimmm header and foward it to BAL.
-        QJsonDocument gimmm_msg;
-        QJsonObject root;
-        root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_ACK",
-        root[gimmmfieldnames::SESSION_ID]   =  sessid.c_str();
-        root[gimmmfieldnames::MESSAGE_ID]   =  original_msgid.c_str();
-        gimmm_msg.setObject(root);
-
-        PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
-        SequenceId_t newseqid = __dbConn.getNextSequenceId();
-
-        std::stringstream newmsgid;
-        newmsgid << newseqid;
-        MessagePtr_t balack = Message::createMessage(
-                                  newseqid,
-                                  MessageType::DOWNSTREAM_ACK,
-                                  newmsgid.str(),
-                                  "",
-                                  "fcm",
-                                  sessid,
-                                  pmsg);
-
-        __dbConn.saveMsg(*balack);
-
-        MessageManager& msgmanager = findBalMessageManager(sessid);
-        msgmanager.add(balack);
-        int rcode = msgmanager.canSend(balack);
-        std::cout << "Can Send rcode:" << rcode << std::endl;
-        switch (rcode)
-        {
-            case 0:
-            {
-                forwardMsg(balack);
-                break;
-            }
-            case 1:
-            {
-                std::cout << "Failed to forward message. Message is not in the NEW state."
-                          << std::endl;
-                break;
-            }
-            case 2:
-            {
-                std::cout << "Failed to forward message. Max pending messages[" << MAX_PENDING_MESSAGES
-                          << "] breached" << std::endl;
-                break;
-            }
-            default:
-            {
-                std::cout << "Failed to forward upstream message with rcode[" << rcode << "]"
-                          << std::endl;
-            }
-        }
-     }
-    catch (std::exception& err)
-    {
-        PRINT_EXCEPTION_STRING(std::cout, err);
-    }
-    catch (...)
-    {
-
-    }
-}
-
-
 MessageManager& Application::findBalMessageManager(const SessionId_t& session_id)
 {
     auto it = __balSessionMap.find(session_id);
@@ -688,28 +682,70 @@ MessageManager& Application::findBalMessageManager(const SessionId_t& session_id
 
 
 /*!
+ * \brief Application::forwardMsgToBalsession
+ * \param session_id
+ * \param msg
+ */
+void Application::forwardMsgToBalsession(
+        const std::string& session_id,
+        const MessagePtr_t& msg)
+{
+    std::cout << "\nStart forwarding message to BAL...." << std::endl;
+
+    MessageManager& msgmanager = findBalMessageManager(session_id);
+    msgmanager.addMessage(msg->getSequenceId(), msg);
+    int rcode = msgmanager.canSendMessage(msg);
+    switch (rcode)
+    {
+        case 0:
+        {
+            __dbConn.updateMsgState(*msg, MessageState::PENDING_ACK);
+            msg->setState(MessageState::PENDING_ACK);
+            msgmanager.incrementPendingAckCount();
+
+            forwardMsg(session_id, msg);
+            break;
+        }
+        case 1:
+        {
+            std::cout << "ERROR:Failed to forward message. Message is not in the NEW state."
+                      << std::endl;
+            break;
+        }
+        case 2:
+        {
+            std::cout << "WARNING:Failed to forward message. Max pending messages[" << MAX_PENDING_MESSAGES
+                      << "] breached!" << std::endl;
+            break;
+        }
+        default:
+        {
+            std::cout << "ERROR: Failed to foward upstream message. Unknown rcode[" << rcode << "]"
+                      << std::endl;
+        }
+    }
+}
+
+
+/*!
  * \brief Application::forwardMsg
  * \param msg
  */
-void Application::forwardMsg( MessagePtr_t& msg)
+void Application::forwardMsg( const std::string& session_id, const MessagePtr_t& msg)
 {
-    SessionId_t session_id = msg->getTargetSessionId();
-    std::cout << "Forwarding message with msgid[" << msg->getMessageId() << "] to sessionid [" << session_id
-              << "]" << std::endl;
-    BALSessionPtr_t sess = findBalSession(session_id);
+    std::cout << "Forwarding message with id[" << msg->getMessageIdentifier()
+              << "] to sessionid [" << session_id << "]" << std::endl;
 
-    if (msg->getState() != MessageState::PENDING_ACK)
+    BALSessionPtr_t sess = findBalSession(session_id);
+    if (sess->getSessionState() == SessionState::UNAUTHENTICATED)
     {
-        Message temp_msg = *msg;
-        temp_msg.setState(MessageState::PENDING_ACK);
-        __dbConn.updateMsg(temp_msg);
-        *msg = temp_msg;
-        sess->getMessageManager().incrementPendingAckCount();
+        std::cout << "Session is not connected. Will try later." << std::endl;
+        return;
     }
 
     auto gimmm_msg = msg->getPayload();
     const QJsonDocument& jdoc = *gimmm_msg;
-    PRINT_JSON_DOC_RAW(std::cout, jdoc);
+    PRINT_JSON_DOC(std::cout, jdoc);
     try
     {
         sess->writeMessage(jdoc);
@@ -718,16 +754,6 @@ void Application::forwardMsg( MessagePtr_t& msg)
     {
         PRINT_EXCEPTION_STRING(std::cout, err);
     }
-}
-
-
-/*!
- * \brief Application::retrySendingDownstreamMessage
- * \param ptr
- */
-void Application::retrySendingDownstreamMessage(MessagePtr_t msg)
-{
-    uploadToFcm(msg);
 }
 
 
@@ -744,25 +770,30 @@ void Application::notifyDownstreamUploadFailure(const MessagePtr_t& msg)
 
     try
     {
-        const MessageId_t& msgid = msg->getMessageId();
+        SequenceId_t nextseqid = __dbConn.getNextSequenceId();
+
+        const FcmMessageId_t& msgid = msg->getFcmMessageId();
         //failure goes to the source session.
         const SessionId_t& sessid = msg->getSourceSessionId();
 
         QJsonDocument gimmm_msg;
         QJsonObject root;
+        root[gimmmfieldnames::SEQUENCE_ID]   = nextseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_REJECT";
-        root[gimmmfieldnames::MESSAGE_ID]   = msgid.c_str();
         root[gimmmfieldnames::SESSION_ID]   = sessid.c_str();
         root[gimmmfieldnames::ERROR_DESC]   = "Max retry reached.";
+        // original downstream message.
+        root[gimmmfieldnames::FCM_DATA]     = msg->getPayload()->object();
         gimmm_msg.setObject(root);
 
         PayloadPtr_t pmsg(new QJsonDocument(gimmm_msg));
         MessagePtr_t msgptr(new Message());
+        msgptr->setSequenceId(nextseqid);
         msgptr->setType(MessageType::DOWNSTREAM_REJECT);
-        msgptr->setMessageId(msgid);
-        msgptr->setPayload(pmsg);
+        msgptr->setFcmMessageId(msgid);
         msgptr->setTargetSessionId(sessid);
         msgptr->setState(MessageState::PENDING_ACK);
+        msgptr->setPayload(pmsg);
         __dbConn.saveMsg(*msgptr);
 
         auto sess = findBalSession(sessid);
@@ -774,7 +805,7 @@ void Application::notifyDownstreamUploadFailure(const MessagePtr_t& msg)
     }
     catch (...)
     {
-
+        std::cout << "ERROR: Unknown message caught." << std::endl;
     }
 }
 
@@ -790,12 +821,17 @@ void Application::printProperties()
     std::cout << "FCM_SECTION/server_key:"      << __fcmServerKey.toStdString() << std::endl;
     std::cout << "SERVER_SECTION/port_no:"      << __serverPortNo << std::endl;
     std::cout << "SERVER_SECTION/host_address:" << __serverHostAddress.toString().toStdString() << std::endl;
-    std::cout << "BAL_SECTION/sessions: TODO" << std::endl;
+    std::cout << "BAL_SECTION/sessions:" << std::endl;
+    for (auto&& it : __balSessionMap)
+    {
+        BALSessionPtr_t sp = it.second;
+        std::cout << "\tSESSION ID:" << sp->getSessionId() << std::endl;
+    }
 }
 
 
 /*!
- * \brief Application::sendAckMessage
+ * \brief Application::sendFcmAckMessage
  * @https://firebase.google.com/docs/cloud-messaging/server
  * For each device message your app server receives from CCS,
  * it needs to send an ACK message. It never needs to send a NACK message.
@@ -803,11 +839,12 @@ void Application::printProperties()
  * a new XMPP connection is established, unless the message expires first.
  * \param json
  */
-void Application::sendAckMessage(const QJsonDocument& original_msg)
+void Application::sendFcmAckMessage(const QJsonDocument& original_msg)
 {
-    std::cout << "Sending Ack back to FCM..." << std::endl;
     std::string to = original_msg.object().value("from").toString().toStdString();
     std::string mid = original_msg.object().value("message_id").toString().toStdString();
+
+    std::cout << "Sending Ack back to FCM for message with msg id[" << mid << "]..." << std::endl;
 
     QJsonDocument ackmsg;
     QJsonObject root;
@@ -816,47 +853,67 @@ void Application::sendAckMessage(const QJsonDocument& original_msg)
     root[fcmfieldnames::MESSAGE_TYPE] = "ack";
     ackmsg.setObject(root);
 
-    PRINT_JSON_DOC(std::cout, ackmsg);
+    PRINT_JSON_DOC_RAW(std::cout, ackmsg);
     // ack as many and as quickly as possible.
     emit sendMessage(ackmsg);
 }
 
 
 /*!
- * \brief Application::retryNacksWithExponentialBackoff
- * \param msg_id
- */
-void Application::retryNacksWithExponentialBackoff(MessagePtr_t ptr)
-{
-    bool success =  retryWithBackoff(ptr);
-
-    if (!success)
-    {
-        // retry exceeded send failure.
-        notifyDownstreamUploadFailure(ptr);
-    }
-}
-
-/*!
- * \brief Application::retryWithBackoff
+ * \brief Application::retryDownstreamWithExponentialBackoff
  * \param msg
- * \return
  */
-bool Application::retryWithBackoff(MessagePtr_t& msg)
+void Application::retryDownstreamWithExponentialBackoff(MessagePtr_t& msg)
 {
     int msec = msg->getNextRetryTimeout();
     if ( msec != -1)
     {
-        auto timerCallback = [msg, this]{
-            retrySendingDownstreamMessage(msg);
+        msg->setRetryInProgress(true);
+        auto timerCallback = [msg, this]() mutable{
+            uploadToFcm(msg);
+            msg->setRetryInProgress(false);
         };
         // retry sending after 'msec' millisecs.
         QTimer::singleShot(msec, Qt::TimerType::PreciseTimer, timerCallback);
-        return true;
     }
-    std::cout << "ERROR: Unable to send msg with msgid[" << msg->getMessageId()
-              << "]. Max retry reached." << std::endl;
-    return false;
+    else
+    {
+        // retry exceeded send failure.
+        std::cout << "ERROR: Unable to send msg with id["
+                  << msg->getSequenceId() << "]. Max retry reached."
+                  << std::endl;
+        __dbConn.updateMsgState(*msg, MessageState::DELIVERY_FAILED);
+        __fcmMsgManager.removeMessageWithFcmMsgId(msg->getFcmMessageId());
+        notifyDownstreamUploadFailure(msg);
+    }
+}
+
+
+/*!
+ * \brief Application::retryUpstreamWithExponentialBackoff
+ * \param msg
+ */
+void Application::retryUpstreamWithExponentialBackoff(MessagePtr_t& msg)
+{
+    int msec = msg->getNextRetryTimeout();
+    if ( msec != -1)
+    {
+        msg->setRetryInProgress(true);
+        auto timerCallback = [msg, this]{
+            forwardMsg(msg->getTargetSessionId(), msg);
+            msg->setRetryInProgress(false);
+        };
+        // retry sending after 'msec' millisecs.
+        QTimer::singleShot(msec, Qt::TimerType::PreciseTimer, timerCallback);
+    }
+    else
+    {
+        __dbConn.updateMsgState(*msg, MessageState::DELIVERY_FAILED);
+        MessageManager& msgmanager = findBalMessageManager(msg->getTargetSessionId());
+        msgmanager.removeMessageWithFcmMsgId(msg->getFcmMessageId());
+    }
+    std::cout << "ERROR: Unable to send msg [" << msg->getMessageIdentifier() << "]. Max retry reached."
+              << std::endl;
 }
 
 
@@ -877,13 +934,13 @@ void Application::handleBALSocketReadyRead()
         if (!in.commitTransaction())
             return;
 
-        std::cout << "===================================START NEW BAL MESSAGE============================================\n";
+        std::cout << "=========================START NEW BAL MESSAGE=================================\n";
         std::cout << "Peer[" << getPeerDetail(socket) << "]" << std::endl;
         try
         {
-            QJsonDocument jsondoc = QJsonDocument::fromBinaryData(bytes);
-            PRINT_JSON_DOC_RAW(std::cout, jsondoc);
-            handleBALmsg(socket, jsondoc);
+            QJsonDocument balmsg = QJsonDocument::fromBinaryData(bytes);
+            PRINT_JSON_DOC_RAW(std::cout, balmsg);
+            handleBALmsg(socket, balmsg);
         }
         catch (std::exception& err)
         {
@@ -893,7 +950,7 @@ void Application::handleBALSocketReadyRead()
         {
           std::cout << "ERROR:Unknown exception caught." << std::endl;
         }
-        std::cout << "===================================END NEW BAL MESSAGE==============================================" << std::endl;
+        std::cout << "=========================END NEW BAL MESSAGE===================================" << std::endl;
     }
 }
 
@@ -904,28 +961,29 @@ void Application::handleBALSocketReadyRead()
  */
 void Application::handleBALmsg(
             QTcpSocket* socket,
-            const QJsonDocument& jsondoc)
+            const QJsonDocument& balmsg)
 {
     // TODO validate jsondoc
 
-    std::string type = jsondoc.object().value(gimmmfieldnames::MESSAGE_TYPE).toString().toStdString();
+    std::string type = balmsg.object().value(gimmmfieldnames::MESSAGE_TYPE).toString().toStdString();
     std::string session_id;
 
 
     if (type == "LOGON")
     {
-         session_id  = jsondoc.object().value(gimmmfieldnames::SESSION_ID).toString().toStdString();
-         handleBALLogonRequest(socket, session_id);
+         session_id  = balmsg.object().value(gimmmfieldnames::SESSION_ID).toString().toStdString();
+         handleBalLogonRequest(socket, session_id);
     }
     else if (type == "DOWNSTREAM")
     {
         session_id = socket->property("session_id").toString().toStdString();
-        handleBalPassthruMessage(session_id, jsondoc);
+        handleBalDownstreamUploadRequest(session_id, balmsg);
     }
     else if (type == "ACK")
     {
-        std::string msgid = jsondoc.object().value(gimmmfieldnames::MESSAGE_ID).toString().toStdString();
-        handleBalAckMsg(session_id, msgid);
+        session_id = socket->property("session_id").toString().toStdString();
+        SequenceId_t seqid = balmsg.object().value(gimmmfieldnames::SEQUENCE_ID).toInt();
+        handleBalAckMsg(session_id, seqid);
     }
     else
     {
@@ -952,24 +1010,24 @@ void Application::handleNewBALConnection()
     __balSessionMapU.emplace(id, conn);
 
     auto timerCallback = [conn, this]{
-            handleAuthenticationTimeout(conn);
+            handleBalAuthenticationTimeout(conn);
       };
     QTimer::singleShot(MAX_LOGON_MSG_WAIT_TIME, Qt::TimerType::PreciseTimer, conn->getTimerContext(), timerCallback);
 }
 
 
 /*!
- * \brief Application::handleAuthenticationTimeout
+ * \brief Application::handleBalAuthenticationTimeout
  * \param sess
  */
-void Application:: handleAuthenticationTimeout(BALConnPtr_t conn)
+void Application:: handleBalAuthenticationTimeout(BALConnPtr_t conn)
 {
-    std::cout << "-----------------------------------START Authenticatio----------------------------------------------" << std::endl;
+    std::cout << "-----------------------------------Start handleBalAuthenticationTimeout----------------------------------------------" << std::endl;
     conn->getSocket()->blockSignals(true);
     __balSessionMapU.erase(conn->getSocket()->socketDescriptor());
     std::cout << "Peer[" << getPeerDetail(conn->getSocket())
         << "] timed out before being authenticated. Destroying connection..." << std::endl;
-    std::cout << "-----------------------------------END Authentication Timeout --------------------------------------" << std::endl;
+    std::cout << "-----------------------------------End handleBalAuthenticationTimeout--------------------------------------" << std::endl;
 }
 
 
@@ -994,20 +1052,18 @@ std::string Application::getPeerDetail(const QTcpSocket* socket)
  */
 void Application::handleBalAckMsg(
         const SessionId_t& session_id,
-        const MessageId_t& msg_id)
+        const SequenceId_t& seqid)
 {
-    std::cout << "Recieved Ack for upstream message msgid[" << msg_id
+    std::cout << "----------------------------------Start handleBalAckMsg----------------------------------------\n";
+    std::cout << "Received Ack for message with id[, sequenceid:" << seqid
               << "], from sessionid [" <<session_id << "]" << std::endl;
     try
     {
         MessageManager& msgmanager = findBalMessageManager(session_id);
-        MessagePtr_t msg = msgmanager.findMessage(msg_id);
-        Message temp_msg = *msg;
-        temp_msg.setState(MessageState::DELIVERED);
-        __dbConn.updateMsg(temp_msg);
-        *msg = temp_msg;
+        MessagePtr_t msg = msgmanager.findMessage(seqid);
+        __dbConn.updateMsgState(*msg, MessageState::DELIVERED);
+        msgmanager.removeMessage(seqid);
 
-        msgmanager.remove(msg_id);
         sendNextPendingUpstreamMessage(msgmanager);
     }
     catch ( std::exception& err)
@@ -1018,19 +1074,20 @@ void Application::handleBalAckMsg(
     {
 
     }
+    std::cout << "----------------------------------End handleBalAckMsg----------------------------------------\n";
 }
 
 
 /*!
- * \brief Application::handleBALLogonRequest
+ * \brief Application::handleBalLogonRequest
  * \param socket
  * \param session_id
  */
-void Application::handleBALLogonRequest(
+void Application::handleBalLogonRequest(
                     QTcpSocket* socket,
                     const std::string& session_id)
 {
-    std::cout << "----------------------------------START handleBALLogonRequest----------------------------------------\n";
+    std::cout << "----------------------------------Start handleBalLogonRequest----------------------------------------\n";
     auto it = __balSessionMapU.find(socket->socketDescriptor());
     if ( it == __balSessionMapU.end())
     {
@@ -1076,7 +1133,7 @@ void Application::handleBALLogonRequest(
             resendPendingUpstreamMessages(sess);
       };
     QTimer::singleShot(1000, Qt::TimerType::PreciseTimer, timerCallback);
-    std::cout << "----------------------------------END handleBALLogonRequest---------------------------------------" << std::endl;
+    std::cout << "----------------------------------End handleBalLogonRequest---------------------------------------" << std::endl;
 }
 
 
@@ -1085,7 +1142,7 @@ void Application::handleBALLogonRequest(
  */
 void Application::handleBALSocketDisconnected()
 {
-    std::cout << "-----------------------------------START BAL Session Disconnect-------------------------------------\n";
+    std::cout << "-----------------------------------Start BAL Session Disconnect-------------------------------------\n";
     QTcpSocket* socket = (QTcpSocket*) sender();
     std::cout << "Peer[" << getPeerDetail(socket) << "] disconnected." << std::endl;
     auto desc = socket->socketDescriptor();
@@ -1110,12 +1167,12 @@ void Application::handleBALSocketDisconnected()
             std::cout << "Authenticated session <" << sid  <<">, lost." << std::endl;
         }
     }
-    std::cout << "----------------------------------END BAL Session Disconnect----------------------------------------\n";
+    std::cout << "----------------------------------End BAL Session Disconnect----------------------------------------\n";
 }
 
 
 /*!
- * \brief Application::handleBalPassthruMessage
+ * \brief Application::handleBalDownstreamUploadRequest
  *  Flow control@ https://firebase.google.com/docs/cloud-messaging/server#flow
  *  "Every message sent to CCS receives either an ACK or a NACK response.
  *  Messages that haven't received one of these responses are considered pending.
@@ -1123,38 +1180,41 @@ void Application::handleBALSocketDisconnected()
  *  the app server should stop sending new messages and wait for
  *  CCS to acknowledge some of the existing pending messages"
  * \param session_id    session from where this message was recieved.
- * \param downstream_msg
+ * \param bal_downstream_msg
  */
-void Application::handleBalPassthruMessage(
+void Application::handleBalDownstreamUploadRequest(
     const SessionId_t& session_id,
-    const QJsonDocument& downstream_msg)
+    const QJsonDocument& bal_downstream_msg)
 {
-    std::cout << "-----------------------------------START handleBalPassthruMessage -------------------------------------\n";
-    std::string mid = downstream_msg.object().value(gimmmfieldnames::MESSAGE_ID).toString().toStdString();
-    std::string gid = downstream_msg.object().value(gimmmfieldnames::GROUP_ID).toString().toStdString();
-    QJsonObject data = downstream_msg.object().value(gimmmfieldnames::FCM_DATA).toObject();
+    std::cout << "-----------------------------------Start handleBalDownstreamUploadRequest -------------------------------------\n";
+    std::string gid  = bal_downstream_msg.object().value(gimmmfieldnames::GROUP_ID).toString().toStdString();
+    QJsonObject data = bal_downstream_msg.object().value(gimmmfieldnames::FCM_DATA).toObject();
+    std::string fcm_mid = data.value(fcmfieldnames::MESSAGE_ID).toString().toStdString();
 
     QJsonDocument jdoc(data);
     PayloadPtr_t pmsg(new QJsonDocument(jdoc));
 
     SequenceId_t nextseqid = __dbConn.getNextSequenceId();
-    MessagePtr_t msg = Message::createMessage( nextseqid,
-                                                MessageType::DOWNSTREAM,
-                                                mid,
-                                                gid,
-                                                session_id,
-                                                "fcm",
-                                                pmsg
-                                                     );
+    MessagePtr_t msg( new Message( nextseqid,
+                                   MessageType::DOWNSTREAM,
+                                   fcm_mid,
+                                   gid,
+                                   session_id,
+                                   "fcm",
+                                   pmsg));
     std::cout << "New message created:" << std::endl;
     std::cout << *msg << std::endl;
+
     __dbConn.saveMsg(*msg);
-    __fcmMsgManager.add(msg);
-    int rcode = __fcmMsgManager.canSend(msg);
+    __fcmMsgManager.addMessage(nextseqid, msg);
+    int rcode = __fcmMsgManager.canSendMessage(msg);
     switch (rcode)
     {
         case 0:
         {
+            __dbConn.updateMsgState(*msg, MessageState::PENDING_ACK);
+            msg->setState(MessageState::PENDING_ACK);
+            __fcmMsgManager.incrementPendingAckCount();
             uploadToFcm(msg);
             break;
         }
@@ -1176,7 +1236,7 @@ void Application::handleBalPassthruMessage(
                       << std::endl;
         }
     }
-    std::cout << "-----------------------------------END handleBalPassthruMessage -------------------------------------\n";
+    std::cout << "-----------------------------------End handleBalDownstreamUploadRequest -------------------------------------\n";
 }
 
 
@@ -1186,18 +1246,11 @@ void Application::handleBalPassthruMessage(
  */
 void Application::uploadToFcm(MessagePtr_t &msg)
 {
-    // update message status if it is not a retry.
-    if ( msg->getState() != MessageState::PENDING_ACK)
-    {
-        Message temp_msg = *msg;
-        temp_msg.setState(MessageState::PENDING_ACK);
-        __dbConn.updateMsg(temp_msg);
-        *msg = temp_msg;
-        __fcmMsgManager.incrementPendingAckCount();
-    }
-    std::cout << "Uploading message with msgid[" << msg->getMessageId() << "]." << std::endl;
+    std::cout << "Uploading message with id["
+              << msg->getMessageIdentifier() << "] to FCM." << std::endl;
+
     const QJsonDocument& jdoc = *(msg->getPayload());
-    PRINT_JSON_DOC(std::cout, jdoc);
+    PRINT_JSON_DOC_RAW(std::cout, jdoc);
     emit sendMessage(jdoc);
 }
 
@@ -1221,24 +1274,29 @@ void Application::resendPendingUpstreamMessages(const BALSessionPtr_t& sess)
         //skip all non downstream message.
         if (msg->getType() != MessageType::UPSTREAM &&
             msg->getType() != MessageType::DOWNSTREAM_ACK &&
-            msg->getType() != MessageType::DOWNSTREAM_REJECT)
+            msg->getType() != MessageType::DOWNSTREAM_REJECT &&
+            msg->getType() != MessageType::DOWNSTREAM_RECEIPT)
         {
             continue;
         }
         // resend new and pending ack messages.
-        int rcode = msgmanager.canSendOnReconnect(msg);
+        int rcode = msgmanager.canSendMessageOnReconnect(msg);
         if (rcode == 0)
         {
-            std::cout << "\nResending message with mid[" << msg->getMessageId()
-                      << "] to session [" << sid <<"]" << std::endl;
+            std::cout << "\nResending upstream message with msgid ["
+                      << msg->getMessageIdentifier() << "] to session ["
+                      << sid <<"]" << std::endl;
 
-            forwardMsg(msg);
+            if ( msg->getState() != MessageState::PENDING_ACK)
+            {
+                __dbConn.updateMsgState(*msg, MessageState::PENDING_ACK);
+                msgmanager.incrementPendingAckCount();
+            }
+            forwardMsg(sid, msg);
         }
         else if ( rcode == 2 )
         {
-            bool success = retryWithBackoff(msg);
-            if (!success)
-               msgmanager.remove(msg->getMessageId());
+            retryUpstreamWithExponentialBackoff(msg);
         }else if (rcode == 3)
         {
             //there is another msg ahead in the same grp so lets skip for now.
@@ -1249,16 +1307,16 @@ void Application::resendPendingUpstreamMessages(const BALSessionPtr_t& sess)
         }
         else
         {
-           std::cout << "ERROR: Unable to send message with id[" << msg->getMessageId()
+           std::cout << "ERROR: Unable to send message with msgid[" << msg->getMessageIdentifier()
                      << "]" << std::endl;
-           msgmanager.remove(msg->getMessageId());
+           msgmanager.removeMessage(msg->getSequenceId());
         }
     }
 }
 
 
 /*!
- * \brief Application::resendPendingDownstreamMessages
+ * \brief Application::resendAllPendingDownstreamMessages
  * Called after a session is established/restablished with FCM. Resends all
  * NEW and PENDING ACK messages from the queue.
  *
@@ -1271,45 +1329,48 @@ void Application::resendPendingUpstreamMessages(const BALSessionPtr_t& sess)
  * messages for which an ACK/NACK was not received from CCS
  * before the connection was closed should be sent again.
  */
-void Application::resendPendingDownstreamMessages()
+void Application::resendAllPendingDownstreamMessages()
 {
     std::cout << "Attempting to resend all pending downstream messages..." << std::endl;
     MessageQueue_t& msgmap = __fcmMsgManager.getMessages();
     std::cout << "Found [" << msgmap.size() << "] pending downstream messages." << std::endl;
-    for (auto& it: msgmap)
+    for (auto&& it: msgmap)
     {
         MessagePtr_t msg = it.second;
-        //skip all non downstream message.
+
+        //skip all non downstream message. Just a safety check for clumsy people.
         if (msg->getType() != MessageType::DOWNSTREAM)
         {
+            std::cout << "WARNING: Non downstream message with id ["
+                      << msg ->getMessageIdentifier()
+                      << "] found. This shouldn't happen!" << std::endl;
             continue;
         }
 
         // resend new and pending ack messages.
-        int rcode = __fcmMsgManager.canSendOnReconnect(msg);
-        if (rcode == 0)
+        int rcode = __fcmMsgManager.canSendMessageOnReconnect(msg);
+        switch (rcode)
         {
-            std::cout << "Resending message with mid[" << msg->getMessageId()
-                      << "] to FCM." << std::endl;
+            case 0:
+            {
+                std::cout << "Resending message with msgid[" << msg->getMessageIdentifier()
+                          << "] to FCM." << std::endl;
 
-            QJsonDocument& json = *msg->getPayload();
-            emit sendMessage(json);
-        }
-        else if ( rcode == 2)
-        {
-            bool success = retryWithBackoff(msg);
-            if (!success)
-               __fcmMsgManager.remove(msg->getMessageId());
-        }else if (rcode == 3)
-        {
-            //there is another msg ahead in the same grp so lets skip for now.
-            //we will attempt to resend when the next ack arrives.
-        }
-        else
-        {
-           std::cout << "ERROR: Unable to send message with id[" << msg->getMessageId()
-                     << "]" << std::endl;
-           __fcmMsgManager.remove(msg->getMessageId());
+                QJsonDocument& json = *msg->getPayload();
+                emit sendMessage(json);
+                break;
+            }
+            case 2:
+            {
+                retryDownstreamWithExponentialBackoff(msg);
+                break;
+            }
+            case 1:// wrong state
+            case 3:// max pending message limit breached.
+            default:
+            {
+                //do nothing
+            }
         }
     }
 }
@@ -1321,7 +1382,7 @@ void Application::resendPendingDownstreamMessages()
 void Application::hupSignalHandler(int)
 {
     char a = 1;
-    ::write(sighupFd[0], &a, sizeof(a));
+    ::write(sigintFd[0], &a, sizeof(a));
 }
 
 
@@ -1359,7 +1420,7 @@ void Application::handleSigInt()
 {
   snHup->setEnabled(false);
   char tmp;
-  ::read(sighupFd[1], &tmp, sizeof(tmp));
+  ::read(sigintFd[1], &tmp, sizeof(tmp));
 
   // do Qt stuff
   std::cout << "SIGINT RECIEVED:" << std::endl;
@@ -1369,6 +1430,11 @@ void Application::handleSigInt()
 }
 
 
+/*!
+ * \brief Application::findBalSession
+ * \param session_id
+ * \return
+ */
 BALSessionPtr_t Application::findBalSession(const std::string& session_id)
 {
     auto it1 = __balSessionMap.find(session_id);

@@ -163,6 +163,7 @@ XMPP Handshake with Google FCM server.
 <!-- see https://firebase.google.com/docs/cloud-messaging/xmpp-server-ref for more details. -->
 
 <!-- DOWNSTREAM MESSAGE:
+     // data message
      message id:        REQUIRED. STRING. Unique id that identifies this message.
      to:                OPTIONAL. STRING. Device's registration token, group notification key or a topic/topics.
      condition:         OPTIONAL: STRING. Logical expression of conditions that determines a target.
@@ -172,36 +173,82 @@ XMPP Handshake with Google FCM server.
      mutable_content:   OPRIONAL.
      time_to_live:      OPTIONAL.Defaults to 4 weeks. Specified in secs.
      dry_run:           OPTIONAL.
-     data:              OPTIONA, OBJECT. Key/Value pair. Key shouldnt be a reserved word like to, collapse_key etc.
+     data:              OPTIONA, OBJECT. Key/Value pair message payload.
+                                         Key shouldnt be a reserved word like to, collapse_key etc.
+
+
+
+    // notification
+     message id:        REQUIRED. STRING. Unique id that identifies this message.
+     to:                OPTIONAL. STRING. Device's registration token, group notification key or a topic/topics.
+     condition:         OPTIONAL: STRING. Logical expression of conditions that determines a target.
+     priority:          OPTIONAL. STRING. Data messagen defaults to 'normal'. Notification defaults to 'High'
+     collapse_key:      OPTIONAL.
+     content_available: OPTIONAL.
+     mutable_content:   OPRIONAL.
+     time_to_live:      OPTIONAL.Defaults to 4 weeks. Specified in secs.
+     dry_run:           OPTIONAL.
+     title:             OPTIONAL. STRING.
+     body               OPTIONAL. STRING
+     sound              OPTIONAL. STRING
+     badge              OPTIONAL. STRING
+     click_action       OPTIONAL. STRING
+     body_loc_key       OPTIONAL. STRING
+     body_loc_args      OPTIONAL. JSON array as STRING
+     title_loc_key      OPTIONAL. STRING
+     title_loc_args     OPTIONAL. JSON array as STRING
+
      notification:
+-->
+
+<!-- DOWNSTREAM MESSAGE RESPONSE (Ack/Nack):
+
+    // Ack specific
+    message_type:   REQUIRED. STRING. Ack
+    from:           REQUIRED. STRING. Specifies who sent this message.
+    message id:     REQUIRED. STRING. Unique id that identifies this message.
+    registration_id OPTIONAL. STRING. New token id. Update old token
+
+    // Nack specific.
+    message_type:   REQUIRED. STRING. Nack
+    registration_id OPTIONAL. STRING. New token id. Update old token
+    // check https://firebase.google.com/docs/cloud-messaging/xmpp-server-ref#table4 for more error details.
+    error:          OPTIONAL. STRING.
+    error_description: OPTIONAL. STRING. Present of message_type = Nack.
+-->
+
+<!--CLOUD CONNECTION SERVER MESSAGE (receipt/control):
+
+    // receipt specific
+    message_type:   REQUIRED. STRING. receipt
+    from:           REQUIRED. STRING. Specifies who sent this message.
+    message id:     REQUIRED. STRING. Unique id that identifies this message.
+    category:       OPTIONAL. STRING.
+    data:           OPTIONAL. OBJECT.
+
+    // control specific
+    message_type:   REQUIRED. STRING. control
+    control_type:   OPTIONAL. STRING. value = CONNECTION_DRAINING
 -->
 
 <!-- Example of downstream message send to a client identified by token 'to' -->
 <message id="">
   <gcm xmlns="google:mobile:data">
-    { "data": {
-      "greeting": "Hello World"
-    },
-    "to" : "bk3RNwTe3H0:CI2k_HHwgIpoDKCIZvvDMExUdFQ3P1..."
-  }
+    {
+        "data": {
+            "greeting": "Hello World"
+        },
+        "to" : "bk3RNwTe3H0:CI2k_HHwgIpoDKCIZvvDMExUdFQ3P1..."
+    }
   </gcm>
 </message>
-
-<!-- DOWNSTREAM MESSAGE RESPONSE:
-    from:           REQUIRED. STRING. Specifies who sent this message.
-    message id:     REQUIRED. STRING. Unique id that identifies this message.
-    message_type:   REQUIRED. STRING. Ack/Nack. If Nack, check error string for error details.
-    error:          OPTIONAL. STRING. Present of message_type = Nack.
-                    https://firebase.google.com/docs/cloud-messaging/xmpp-server-ref#table4 for details.
-    error_description: OPTIONAL. STRING. Present of message_type = Nack.
--->
 
 <!-- Example of downstream message response. -->
 <message id="">
   <gcm xmlns="google:mobile:data">
   {
-      "from":"REGID",
-      "message_id":"m-1366082849205"
+      "from":"bk3RNwTe3H0:CI2k_HHwgIpoDKCIZvvDMExUdFQ3P1...",
+      "message_id":"1366082849205",
       "message_type":"ack"
   }
   </gcm>
@@ -218,6 +265,7 @@ XMPP Handshake with Google FCM server.
         }
         </data:gcm>
 </message>
+
 
 
 <!-- BAL Messages -->
@@ -249,17 +297,14 @@ XMPP Handshake with Google FCM server.
     }
 }
 
-<!-- sample downstream message recieved from a BAL layer -->
+<!-- sample downstream message recieved from a BAL layer. To be uploaded to FCM -->
 {
     message_type = "DOWNSTREAM",
     session_id = "asdfasdfasdf",
     message_id = "12345",
     group_id = "",
     fcm_data = {
-        to = asdfasdfasdfad,
-        data = { "key":"value"},
-        message_id = 12345,
-        time_to_live = 10
+        <!--see DOWNSTREAM MESSAGE fields above -->
     }
 }
 
@@ -269,6 +314,9 @@ XMPP Handshake with Google FCM server.
     session_id = "asdfasdfasdf",
     message_id = "12345",
     group_id = "",
+    fcm_data ={
+        <!--see DOWNSTREAM RESPONSE MESSAGE fields above -->
+    }
 }
 
 <!-- sample downstream message reciept forwarded to a BAL layer. -->
@@ -277,7 +325,9 @@ XMPP Handshake with Google FCM server.
     session_id = "asdfasdfasdf",
     message_id = "12345",
     group_id = "",
-    error_string = "MAX RETRY REACHED"
+    fcm_data ={
+        <!--see DOWNSTREAM RECEIPT MESSAGE fields above -->
+    }
 }
 
 <!-- sample downstream message reciept sent down to a BAL layer. -->
@@ -287,4 +337,20 @@ XMPP Handshake with Google FCM server.
     message_id = "12345",
     group_id = "",
     error_string = "Some Error"
+}
+
+
+<!-- receipt message -->
+{
+    "category": "com.gmail.rajeshkhumanthem.seabus",
+    "data": {
+        "device_registration_id": "feQxxxxxxxa",
+        "message_sent_timestamp": "1498801519251",
+        "message_status": "MESSAGE_SENT_TO_DEVICE",
+        "original_message_id": "39"
+    },
+    "from": "gcm.googleapis.com",
+    "message_id": "dr2:39",
+    "message_type": "receipt",
+    "time_to_live": 0
 }
