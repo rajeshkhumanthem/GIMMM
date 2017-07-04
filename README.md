@@ -13,7 +13,7 @@ At this point, GIMMM is able to
 
 1) Establish a connection to the FCM CCS using the authentication credentials provided in the 'config.ini' file. 
 2) Handle heartbeats from FCM Connection server.
-3) Handle ack/nack from the FCM Connection server.
+3) Handle ack/nack/receipt from the FCM Connection server.
 4) Handle control messages (CONNECTION DRAINING).
 5) Retry with exponential backoff. 
 6) Flow control.
@@ -21,14 +21,14 @@ At this point, GIMMM is able to
 8) Recieve messages from the BAL Client and forward it to an ios app (downstream message).  
 9) Hold on to all upstream messages if BAL client connection is down and forward to it after a successfull reconnect.
 10) Resend messages to FCM after a disconnect/reconnect.
+
+11) Persist message using Sqlite; to persist upstream/downstream message for resend.
+12) Support message grouping for strict order messaging.
 TODO:
 
-2) Handle 'Reciepts' messages (in progress).
-3) Quick start guide (in progress). 
-4) Reference implementation of BAL in other languages like python, java etc.
-5) Persist message using Sqlite. To persist upstream/downstream message for resend.
-6) Implement message grouping for strict order messaging (done).
-7) Utility class for message id generation.
+1) Quick start guide (in progress). 
+2) Reference implementation of BAL in other languages like python, java etc.
+
 
 # Other Details
 Implemented in C++ using QT framework.
