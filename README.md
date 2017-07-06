@@ -1,19 +1,21 @@
 # GIMMM
 
-C++ Implementation of the Firebase App Server (XMPP Protocol). Typical use case would be to deploy this as a standalone server. The server is intended to act as an XMPP session layer abstraction that sits nicely between your Business Application Layer and the FCM end points. The Business Application Layer is expected to be implemented as a separate process(in any language). It will simply connect to the TCP port as specified under the 'SERVER_SECTION' in the config file to send and recieve messages. A reference implementation of a typical BAL in C++ is provided under the project GIMMMCLIENT. The GIMMM daemon together with the GIMMMCLIENT forms an 'app server' as described under:
+C++ Implementation of the Firebase App Server (XMPP Protocol). Typical use case would be to deploy this as a standalone server. The server is intended to act as an XMPP session layer abstraction that sits nicely between your Business Application Layer and the FCM end points. The Business Application Layer is expected to be implemented as a separate process(in any language). It will simply connect to the TCP port as specified under the 'SERVER_SECTION' in the config file to send and recieve messages. A reference implementation of a typical BAL in C++ is provided under the project GIMMMAPPSERVER. The GIMMM daemon together with the GIMMMAPPSERVER forms the 'app server' as described under:
 
 https://firebase.google.com/docs/cloud-messaging/server
 
-By separating the 'app server' into 2 parts; a session layer (GIMMM daemon) and a business application logic aka BAL layer (GIMMM Client), an application programmer can concentrate wholely on implementing their BAL and leave the nitty gritty details of interfacing with the FCM Connection servers to the GIMMM daemon.
+By separating the 'app server' into 2 parts; a session layer (GIMMM daemon) and a business application logic aka BAL layer (GIMMMAPPSERVER), an application programmer can concentrate wholely on implementing their BAL and leave the nitty gritty details of interfacing with the FCM Connection servers to the GIMMM daemon.
 
 For a more detail documentation please see [Gimmm Wiki Page](https://github.com/rajeshkhumanthem/GIMMM/wiki).
+
+Note: If you are looking to setup an XMPP based backend for your mobile application quickly, GIMMMAPPSERVER is what you need.
 
 # Status
 At this point, GIMMM is able to 
 
 1) Establish a connection to the FCM CCS using the authentication credentials provided in the 'config.ini' file. 
 2) Handle heartbeats from FCM Connection server.
-3) Handle ack/nack from the FCM Connection server.
+3) Handle ack/nack/receipt from the FCM Connection server.
 4) Handle control messages (CONNECTION DRAINING).
 5) Retry with exponential backoff. 
 6) Flow control.
@@ -21,14 +23,14 @@ At this point, GIMMM is able to
 8) Recieve messages from the BAL Client and forward it to an ios app (downstream message).  
 9) Hold on to all upstream messages if BAL client connection is down and forward to it after a successfull reconnect.
 10) Resend messages to FCM after a disconnect/reconnect.
+
+11) Persist message using Sqlite; to persist upstream/downstream message for resend.
+12) Support message grouping for strict order messaging.
 TODO:
 
-2) Handle 'Reciepts' messages (in progress).
-3) Quick start guide (in progress). 
-4) Reference implementation of BAL in other languages like python, java etc.
-5) Persist message using Sqlite. To persist upstream/downstream message for resend.
-6) Implement message grouping for strict order messaging (done).
-7) Utility class for message id generation.
+1) Quick start guide (in progress). 
+2) Reference implementation of BAL in other languages like python, java etc.
+
 
 # Other Details
 Implemented in C++ using QT framework.
