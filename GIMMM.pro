@@ -50,3 +50,6 @@ DISTFILES += \
     README.md \
     .gitignore \
     xmpp_handshake.xml
+
+unix:LIBS += -ldl
+

@@ -9,6 +9,7 @@
 #include <QXmlStreamWriter>
 
 #include <vector>
+#include <memory>
 
 
 #define DEFAULT_NSPACE_URI		"jabber:client"

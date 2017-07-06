@@ -395,7 +395,7 @@ void Application::handleFcmNewUpstreamMessage(
         // create gimmm message.
         QJsonDocument gimmm_msg;
         QJsonObject root;
-        root[gimmmfieldnames::SEQUENCE_ID] = nextseqid;
+        root[gimmmfieldnames::SEQUENCE_ID] = (qint64)nextseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "UPSTREAM",
         root[gimmmfieldnames::SESSION_ID]   =  sessionid.c_str();
         root[gimmmfieldnames::FCM_DATA] = client_msg.object();
@@ -467,7 +467,7 @@ void Application::handleFcmAckMessage(int id, const QJsonDocument& ack_msg)
         // add gimmm header and foward it to BAL.
         QJsonDocument gimmm_msg;
         QJsonObject root;
-        root[gimmmfieldnames::SEQUENCE_ID]  = newseqid;
+        root[gimmmfieldnames::SEQUENCE_ID]  = (qint64)newseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_ACK",
         root[gimmmfieldnames::SESSION_ID]   = sessid.c_str();
         root[gimmmfieldnames::FCM_DATA]     = ack_msg.object();
@@ -574,7 +574,7 @@ void Application::handleFcmReceiptMessage(int id, const QJsonDocument& recpt_msg
         // create gimmm message.
         QJsonDocument gimmm_msg;
         QJsonObject root;
-        root[gimmmfieldnames::SEQUENCE_ID] = nextseqid;
+        root[gimmmfieldnames::SEQUENCE_ID] = (qint64)nextseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_RECEIPT",
         root[gimmmfieldnames::SESSION_ID]   =  sessionid.c_str();
         root[gimmmfieldnames::FCM_DATA] = recpt_msg.object();
@@ -778,7 +778,7 @@ void Application::notifyDownstreamUploadFailure(const MessagePtr_t& msg)
 
         QJsonDocument gimmm_msg;
         QJsonObject root;
-        root[gimmmfieldnames::SEQUENCE_ID]   = nextseqid;
+        root[gimmmfieldnames::SEQUENCE_ID]   = (qint64)nextseqid;
         root[gimmmfieldnames::MESSAGE_TYPE] = "DOWNSTREAM_REJECT";
         root[gimmmfieldnames::SESSION_ID]   = sessid.c_str();
         root[gimmmfieldnames::ERROR_DESC]   = "Max retry reached.";

@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <cstdint>
+#include <memory>
 
 #include <QJsonObject>
 #include <QJsonDocument>
